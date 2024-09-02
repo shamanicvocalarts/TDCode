@@ -1,0 +1,27 @@
+if(`panel("button","select")` == 1)
+	opparm $controlpanel/switch1 index (0)
+	
+	#get monitor
+	set mousex = `mouse("x")`
+	set mousey = `mouse("y")`
+	set monitor = `coordtomonitor($mousex,$mousey)`
+	set monitorw = `monitorwidth($monitor)`
+	set monitorh = `monitorheight($monitor)`
+	set monitorl = `monitorleft($monitor)`
+	set monitorr = `monitorright($monitor)`
+	set monitort = `monitortop($monitor)`
+	set monitorb = `monitorbottom($monitor)`
+
+
+	set x = `panelmouse("button","x")`
+	set y = `panelmouse("button","y")`
+
+	set width = `par("$controlpanel/historydrop/panelw")`
+	set height = `par("$controlpanel/historydrop/panelh")`
+
+	set x = `clamp($mousex-$x,0,$monitorr-$width)`
+	set y = `$monitort-$mousey+$y`
+	
+	controlpanel -o $controlpanel/historydrop -f -w $x $y
+	controlpanel -b $controlpanel/historydrop
+endif
