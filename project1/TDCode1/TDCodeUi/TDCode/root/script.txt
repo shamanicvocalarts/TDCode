@@ -1,0 +1,7 @@
+set jumppath = "/"
+tabcell ../panenav/nodeid rc 0 0 `oppathtoid("$jumppath")`
+tabcell ../panenav/setpath rc 0 0 $jumppath
+
+#add to history
+sethistory $jumppath
+desk -p $jumppath $pane
