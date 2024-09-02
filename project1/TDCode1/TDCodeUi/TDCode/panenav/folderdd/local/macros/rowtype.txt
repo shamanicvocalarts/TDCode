@@ -1,0 +1,15 @@
+if(`par("../panelenable")`!=1||`strcmp(tab("labels",$R,0),"")`==0)
+
+	set row = "row_disabled"
+
+else if(`strcmp(tab("labels",$R,0),"---")`==0)
+
+	set row = "divider"
+	
+else
+
+	set row = "row"
+	
+endif
+
+echo "$row"
