@@ -1,0 +1,328 @@
+//ui.js
+
+import { log, updateThemeVariables } from './utils.js';
+import { sendOpParameters } from './websocket.js';
+import { editor, handleUIEvent, currentPath, isUpdating } from './editor.js';
+
+// Flag to determine if glob matching is enabled for search
+let isGlobMode = false;
+
+function setupUIEventListeners() {
+    // Set up event listener for language selection
+    document.getElementById('language-select').addEventListener('change', function(e) {
+        var languageName = e.target.value;
+        var languageFile = e.target.options[e.target.selectedIndex].getAttribute('data-language-file');
+        handleUIEvent('changeLanguage', { languageName, languageFile });
+    });
+
+    // Set up event listener for theme selection
+    document.getElementById('theme-select').addEventListener('change', function(e) {
+        const theme = e.target.value;
+        monaco.editor.setTheme(theme);
+        updateThemeVariables(theme);
+        localStorage.setItem('selectedTheme', theme);
+    });
+
+    // Set up event listener for font size changes
+    document.getElementById('font-size').addEventListener('change', function(e) {
+        var newFontSize = parseInt(e.target.value);
+        editor.updateOptions({ fontSize: newFontSize });
+        document.getElementById('console').style.fontSize = newFontSize + 'px';
+    });
+
+    // Set up event listener for minimap toggle
+    document.getElementById('minimap-toggle').addEventListener('change', function(e) {
+        editor.updateOptions({ minimap: { enabled: e.target.checked } });
+    });
+
+    // Set up event listeners for undo and redo buttons
+    document.getElementById('undo-button').addEventListener('click', function() {
+        editor.trigger('keyboard', 'undo');
+    });
+
+    document.getElementById('redo-button').addEventListener('click', function() {
+        editor.trigger('keyboard', 'redo');
+    });
+
+    // Set up event listeners for DAT and OP selection
+    document.getElementById('dats-select').addEventListener('change', function(e) {
+        handleUIEvent('switchDAT', { path: e.target.value });
+    });
+
+    document.getElementById('ops-select').addEventListener('change', function(e) {
+        handleUIEvent('switchOP', { path: e.target.value });
+    });
+
+    // Set up event listener for live mode toggle
+    document.getElementById('live-toggle').addEventListener('change', function(e) {
+        handleUIEvent('toggleLiveMode', { isLive: e.target.checked });
+    });
+
+    // Set up event listener for glob mode toggle
+    document.getElementById('glob-toggle').addEventListener('change', function() {
+        isGlobMode = this.checked;
+        const activeDropdown = document.querySelector('.dropdown-wrapper[style="display: block;"]');
+        if (activeDropdown) {
+            const list = activeDropdown.querySelector('.dropdown-list');
+            const search = activeDropdown.querySelector('.dropdown-search');
+            filterDropdownList(list, search.value);
+        }
+    });
+
+    // Load saved theme on window load
+    window.addEventListener('load', function() {
+        var savedTheme = localStorage.getItem('selectedTheme') || 'vs-dark';
+        document.getElementById('theme-select').value = savedTheme;
+        monaco.editor.setTheme(savedTheme);
+        updateThemeVariables(savedTheme);
+    });
+
+    // Set up searchable dropdowns for DATs and OPs
+    setupSearchableDropdown('dats-select', 'Alt+Shift+S');
+    setupSearchableDropdown('ops-select', 'Alt+Shift+O');
+
+    // Set up keyboard shortcuts for dropdown toggles
+    document.addEventListener('keydown', function(e) {
+        if (e.altKey && e.shiftKey) {
+            if (e.key === 'S') {
+                e.preventDefault();
+                toggleDropdown('dats-select');
+            } else if (e.key === 'O') {
+                e.preventDefault();
+                toggleDropdown('ops-select');
+            }
+        }
+    });
+
+    // Set up event listener for JSON content changes (for OP parameters)
+    editor.onDidChangeModelContent(function(e) {
+        if (currentPath && !isUpdating && editor.getModel().getLanguageId() === 'json') {
+            var content = editor.getValue();
+            try {
+                const parameters = JSON.parse(content);
+                sendOpParameters(JSON.stringify(parameters), currentPath);
+            } catch (error) {
+                console.error('Invalid JSON:', error);
+            }
+        }
+    });
+    
+}
+
+// Set up searchable dropdown functionality
+function setupSearchableDropdown(id, shortcut) {
+    const select = document.getElementById(id);
+    const container = select.closest('.dropdown-container');
+    const wrapper = container.querySelector('.dropdown-wrapper');
+    const search = container.querySelector('.dropdown-search');
+    const list = container.querySelector('.dropdown-list');
+
+    // Prevent default select behavior and toggle dropdown
+    select.addEventListener('mousedown', function(e) {
+        e.preventDefault();
+        this.blur();
+        toggleDropdown(id);
+    });
+
+    // Filter list on search input
+    search.addEventListener('input', function() {
+        filterDropdownList(list, this.value);
+    });
+
+    // Handle keyboard navigation in dropdown
+    search.addEventListener('keydown', function(e) {
+        handleKeyboardNavigation(e, list);
+    });
+
+    // Handle item selection in dropdown
+    list.addEventListener('click', function(e) {
+        if (e.target.tagName === 'DIV') {
+            selectDropdownItem(select, search, wrapper, e.target);
+        }
+    });
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!container.contains(e.target) && e.target !== search) {
+            wrapper.style.display = 'none';
+        }
+    });
+
+    // Filter list on search input (duplicate, consider removing)
+    search.addEventListener('input', function() {
+        filterDropdownList(list, this.value);
+    });
+}
+
+// Toggle dropdown visibility
+function toggleDropdown(id) {
+    const select = document.getElementById(id);
+    const container = select.closest('.dropdown-container');
+    const wrapper = container.querySelector('.dropdown-wrapper');
+    const search = container.querySelector('.dropdown-search');
+    const list = container.querySelector('.dropdown-list');
+
+    if (wrapper.style.display === 'block') {
+        wrapper.style.display = 'none';
+    } else {
+        wrapper.style.display = 'block';
+        search.focus();
+        populateDropdownList(select, list);
+        filterDropdownList(list, '');
+    }
+} 
+
+// Populate dropdown list with options from select element
+function populateDropdownList(select, list) {
+    list.innerHTML = '';
+    Array.from(select.options).forEach(option => {
+        if (option.value) {
+            const div = document.createElement('div');
+            div.textContent = option.text;
+            div.dataset.value = option.value;
+            list.appendChild(div);
+        }
+    });
+}
+
+// Get display name for path
+function getDisplayName(path) {
+    const parts = path.split('/');
+    return parts.length > 2 ? '.../' + parts.slice(-2).join('/') : path;
+}
+
+// Filter dropdown list based on search input
+function filterDropdownList(list, filter) {
+    const items = Array.from(list.children);
+    let firstVisible = null;
+    const lowercaseFilter = filter.toLowerCase();
+    
+    items.forEach(item => {
+        const text = item.textContent;
+        const lowercaseText = text.toLowerCase();
+        
+        let isVisible;
+        if (isGlobMode) {
+            isVisible = matchGlob(text, filter);
+        } else {
+            isVisible = lowercaseText.includes(lowercaseFilter);
+        }
+        
+        item.style.display = isVisible ? '' : 'none';
+if (isVisible && !firstVisible) firstVisible = item;
+    });
+    
+    if (firstVisible) selectListItem(list, firstVisible);
+}
+
+/**
+ * Match text against a glob pattern
+ * @param {string} text - The text to match
+ * @param {string} pattern - The glob pattern to match against
+ * @return {boolean} True if the text matches the pattern, false otherwise
+ */
+function matchGlob(text, pattern) {
+    if (pattern === '') return true; // Show all items if pattern is empty
+    
+    // Convert glob pattern to regex
+    const regexPattern = pattern
+        .split('*')
+        .map(s => s.replace(/[.+^${}()|[\]\\]/g, '\\$&'))
+        .join('.*');
+    
+    const regex = new RegExp(regexPattern, 'i');
+    return regex.test(text);
+}
+
+/**
+ * Handle keyboard navigation in the dropdown list
+ * @param {Event} e - The keyboard event
+ * @param {HTMLElement} list - The dropdown list element
+ */
+function handleKeyboardNavigation(e, list) {
+    const items = Array.from(list.children).filter(item => item.style.display !== 'none');
+    const selected = list.querySelector('.selected');
+    let index = items.indexOf(selected);
+
+    switch (e.key) {
+        case 'ArrowDown':
+            e.preventDefault();
+            index = (index + 1) % items.length;
+            selectListItem(list, items[index]);
+            break;
+        case 'ArrowUp':
+            e.preventDefault();
+            index = (index - 1 + items.length) % items.length;
+            selectListItem(list, items[index]);
+            break;
+        case 'Enter':
+            e.preventDefault();
+            if (selected) {
+                const select = list.closest('.dropdown-container').querySelector('select');
+                const search = list.closest('.dropdown-container').querySelector('.dropdown-search');
+                const wrapper = list.closest('.dropdown-wrapper');
+                selectDropdownItem(select, search, wrapper, selected);
+            }
+            break;
+    }
+}
+
+/**
+ * Select an item in the dropdown list
+ * @param {HTMLElement} list - The dropdown list element
+ * @param {HTMLElement} item - The item to select
+ */
+function selectListItem(list, item) {
+    list.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+    item.classList.add('selected');
+    item.scrollIntoView({ block: 'nearest' });
+}
+
+/**
+ * Select a dropdown item and update the UI
+ * @param {HTMLSelectElement} select - The select element
+ * @param {HTMLInputElement} search - The search input element
+ * @param {HTMLElement} wrapper - The dropdown wrapper element
+ * @param {HTMLElement} item - The selected item
+ */
+function selectDropdownItem(select, search, wrapper, item) {
+    select.value = item.dataset.value;
+    select.dispatchEvent(new Event('change'));
+    search.value = '';
+    wrapper.style.display = 'none';
+}
+
+/**
+ * Update the DATs dropdown in the UI
+ * @param {Array} dats - Array of DAT objects
+ */
+function updateDatsDropdown(dats) {
+    updateDropdown('dats-select', dats);
+}
+
+/**
+ * Update the OPs dropdown in the UI
+ * @param {Array} ops - Array of OP objects
+ */
+function updateOpsDropdown(ops) {
+    updateDropdown('ops-select', ops);
+}
+
+/**
+ * Update a dropdown with new items
+ * @param {string} id - The ID of the dropdown element
+ * @param {Array} items - Array of items to populate the dropdown
+ */
+function updateDropdown(id, items) {
+    const select = document.getElementById(id);
+    select.innerHTML = '<option value="">Select ' + (id === 'dats-select' ? 'DAT' : 'OP') + '</option>';
+    items.forEach(item => {
+        const option = document.createElement('option');
+        option.value = item.path;
+        option.textContent = item.name;
+        select.appendChild(option);
+    });
+}
+
+// Export the necessary functions for use in other modules
+export { setupUIEventListeners, updateDatsDropdown, updateOpsDropdown };    
