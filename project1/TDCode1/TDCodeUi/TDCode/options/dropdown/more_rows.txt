@@ -1,0 +1,12 @@
+set rows = `opnumchildrentype("list","COMP")`
+set needed = `tabr("$list/define","items",1)`
+
+if ($rows>$needed)
+	for i=$rows to `clamp($needed+1,2,99999)` step -1
+		oprm -f list/button$i
+	end
+else if ($rows<$needed)
+	for i=$rows to `$needed-1`
+		opcp -a list/button1 list/
+	end
+endif
