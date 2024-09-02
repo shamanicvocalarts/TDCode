@@ -1,0 +1,23 @@
+opparm shorten rowindexstart (0)
+set requiredw = `chop("path/menuwidth/chan1")`
+set availablew = `par("../panelw")-20`
+
+if ($availablew < $requiredw)
+
+	while($availablew < $requiredw)
+
+		opparm shorten rowindexstart (`par("shorten/rowindexstart")+2`)
+		opcook -F path/menuwidth
+		
+		set requiredw = `chop("path/menuwidth/chan1")`
+		set availablew = `par("../panelw")-20`
+
+		if (`par("shorten/rowindexstart")+2` >=  `tabnr("shorten")-1`)
+
+			break
+
+		endif		
+
+	end
+
+endif
