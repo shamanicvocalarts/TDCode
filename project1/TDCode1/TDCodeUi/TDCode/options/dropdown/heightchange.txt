@@ -1,0 +1,2 @@
+set oldpos = `int(tab("scrollpos_old",0,0))`
+run set $newpos
