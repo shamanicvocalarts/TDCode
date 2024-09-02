@@ -1,0 +1,70 @@
+#get monitor
+set mousex = `mouse("x")`
+set mousey = `mouse("y")`
+set monitor = `coordtomonitor($mousex,$mousey)`
+set monitorw = `monitorwidth($monitor)`
+set monitorh = `monitorheight($monitor)`
+set monitorl = `monitorleft($monitor)`
+set monitorr = `monitorright($monitor)`
+set monitort = `monitortop($monitor)`
+set monitorb = `monitorbottom($monitor)`
+set x = `panelmouse("..","x")`
+set y = `panelmouse("..","y")`
+
+if (`tab("labels",$arg3,0)` == ">>")
+	set path = `opidtopath(tab("nodeid",0,0))`
+	set current = `opcurrent("$path")`
+	if(`strmatch("COMP:*",optype("$path/$current"))==1`)
+		sethistory $path/$current
+		desk -p $path/$current $pane
+		tabcell nodeid rc 0 0 `oppathtoid("$path/$current")`
+		tabcell setpath rc 0 0 $path/$current
+	else
+		desk -e 4 $pane
+	endif
+else if ($arg3==`tabnr("labels")`)
+	tabcell setpath rc 0 0 `opidtopath(tab("nodeid",0,0))`
+	opparm path paneldisplay (0)
+	opparm pathfield paneldisplay (1)
+else if ($arg3 == 0 && `tab("labels",0,0)` == "<<")
+	opcook -F eval3
+	tabcell id rc 0 0 $arg3
+	opparm switch_shorten index (1)
+	opparm showroot index (1)
+	set menupos = `chop("path/menupos/chan1")`
+	set panelw = `par("folderdd/panelw")`
+	set panelh = `par("folderdd/panelh")`
+	set x = `clamp($mousex-$x+$menupos-10,$monitorl,$monitorr-$panelw)`
+	set y = `$monitort-$mousey+$y`
+	opparm folderdd paneldisplay (1) panelx (`$menupos-10`)
+	#controlpanel -o folderdd -f -w $x $y
+	controlpanel -b folderdd
+else if(`$arg3%2`==0)
+	opcook -F eval3
+	tabcell id rc 0 0 $arg3
+	opparm switch_shorten index (0)
+	if($arg3 == 0)
+		opparm showroot index (0)
+	else
+		opparm showroot index (1)
+	endif
+
+	set menupos = `chop("path/menupos/chan1")`
+	set panelw = `par("folderdd/panelw")`
+	set panelh = `par("folderdd/panelh")`
+	set x = `clamp($mousex-$x+$menupos-10,$monitorl,$monitorr-$panelw)`
+	set y = `$monitort-$mousey+$y`	
+
+	opparm folderdd paneldisplay (1) panelx (`$menupos-10`)
+	#controlpanel -o folderdd -f -w $x $y
+	controlpanel -b folderdd
+else if($arg3 != -1)
+	#set idhist
+	tabcell id rc 0 0 $arg3
+	tabcell setpath rc 0 0 `tab("jumppath",0,0)`
+	tabcell nodeid rc 0 0 `oppathtoid(tab("jumppath",0,0))`
+	
+	#add to history
+	sethistory `tab("jumppath",0,0)`
+	desk -p `tab("jumppath",0,0)` $pane
+endif
