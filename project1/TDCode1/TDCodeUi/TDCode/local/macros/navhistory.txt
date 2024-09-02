@@ -1,0 +1,54 @@
+args direction
+
+if(`panel("$controlpanel/historydrop","winopen")` == 1)
+	exit
+endif
+
+
+if ($direction == "back")
+
+	set current = `tab("$controlpanel/current",0,0)`
+	set newcurr = `$current-1`
+	set path = `tab("$controlpanel/history",$newcurr-1,0)`
+
+	while(`opexists(opidtopath("$path"))`!=1)
+		
+		tabdelete $controlpanel/history R $path
+		if ($newcurr == 0)
+			exit
+		endif
+		set newcurr = `$newcurr-1`
+		set path = `tab("$controlpanel/history",$newcurr-1,0)`
+
+	end
+
+
+	tabcell $controlpanel/panenav/nodeid rc 0 0 $path
+	tabcell $controlpanel/panenav/setpath rc 0 0 `opidtopath($path)`
+	tabcell $controlpanel/current rc 0 0 $newcurr
+	desk -p `opidtopath($path)` $pane
+
+else
+
+	set current = `tab("$controlpanel/current",0,0)`
+	set newcurr = `$current+1`
+	set path = `tab("$controlpanel/history",$current,0)`
+
+	while(`opexists(opidtopath("$path"))`!=1)
+
+		tabdelete $controlpanel/history R $path
+		if ($newcurr == `tabnr("$controlpanel/history")-1`)
+			exit
+		endif
+		set newcurr = `$newcurr+1`
+		set path = `tab("$controlpanel/history",$current,0)`
+
+	end
+
+
+	tabcell $controlpanel/panenav/nodeid rc 0 0 $path
+	tabcell $controlpanel/panenav/setpath rc 0 0 `opidtopath($path)`
+	tabcell $controlpanel/current rc 0 0 $newcurr
+	desk -p `opidtopath($path)` $pane
+
+endif
