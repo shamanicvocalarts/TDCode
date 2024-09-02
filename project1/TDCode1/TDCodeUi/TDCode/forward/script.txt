@@ -1,0 +1,5 @@
+if($arg1 == "offtoon")
+	run -d 1 historydrop
+else
+	navhistory forward
+endif
