@@ -1,0 +1,5 @@
+set bookmark = `trim(tab("$controlpanel/name/string",0,0))`
+set path = `trim(tab("$controlpanel/path/string",0,0))`
+
+run $DIALOGS/dialog_bookmarks/local/macros/addbookmark "$bookmark" $path
+controlpanel -C ..
