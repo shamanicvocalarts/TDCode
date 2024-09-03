@@ -1,0 +1,51 @@
+def create():
+    # Find the leftmost pane
+    leftmost_pane = min(ui.panes, key=lambda p: p.bottomLeft[0])
+    
+    total_width = leftmost_pane.topRight[0] - leftmost_pane.bottomLeft[0]
+    total_height = leftmost_pane.topRight[1] - leftmost_pane.bottomLeft[1]
+    
+    web_browser_op = op('webBrowser')
+    if not web_browser_op:
+        print("Could not find TDCode/webBrowser operator")
+        return None, None, None
+    
+    browser_w = web_browser_op.par.w.eval()
+    browser_h = web_browser_op.par.h.eval()
+    
+    # Calculate the aspect ratios
+    main_aspect_ratio = total_width / total_height
+    browser_aspect_ratio = browser_w / browser_h
+    
+    # Determine if we need to fit by width or height
+    if browser_aspect_ratio < main_aspect_ratio:
+        # Browser is taller relative to its width, so fit by height
+        ratio = (browser_w * (total_height / browser_h)) / total_width
+    else:
+        # Browser is wider relative to its height, so fit by width
+        ratio = browser_w / total_width
+    
+    # Adjust the ratio to account for TouchDesigner's behavior
+    adjusted_ratio = ratio * 0.97  # This factor may need fine-tuning
+    
+    # Round the ratio to 6 decimal places
+    adjusted_ratio = round(adjusted_ratio, 6)
+    
+    return leftmost_pane, adjusted_ratio, web_browser_op
+
+def createEditorPane():
+    leftmost_pane, adjusted_ratio, web_browser_op = create()
+    if leftmost_pane is None or adjusted_ratio is None or web_browser_op is None:
+        return None
+    
+    # Split the leftmost pane
+    new_pane = leftmost_pane.splitLeft()
+    new_pane.ratio = adjusted_ratio
+    
+    new_pane = new_pane.changeType(PaneType.PANEL)
+    new_pane.owner = web_browser_op
+    
+    print(f"New pane ratio: {new_pane.ratio}")
+    print(f"New pane size: {new_pane.topRight[0] - new_pane.bottomLeft[0]}x{new_pane.topRight[1] - new_pane.bottomLeft[1]}")
+    
+    return new_pane
