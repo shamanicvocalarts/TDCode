@@ -1,0 +1,5 @@
+def onValueChange(par, prev):
+	ext.DocsHelper.onParValueChange(par, prev)
+
+def onPulse(par):
+	ext.DocsHelper.onParPulse(par)
