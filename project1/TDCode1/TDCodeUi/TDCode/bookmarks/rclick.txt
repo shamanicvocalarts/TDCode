@@ -1,0 +1,6 @@
+set x = `panelmouse($controlpanel,"x")`
+set y = `panelmouse($controlpanel,"y")`
+set table = `tabr("$gadget/local/define","contextmenu",1)`
+if(`strlen("$table")`>1)
+	#context $table $x $y $gadget
+endif
