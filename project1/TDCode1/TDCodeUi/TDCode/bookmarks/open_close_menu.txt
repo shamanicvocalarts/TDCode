@@ -1,0 +1,66 @@
+if ($arg1=="offtoon")
+
+	if (`par("dropdown/paneldisplay")` == 1 || `panel("dropdown","winopen")` == 1)
+
+		if (`tabr("$gadget/local/define","window",1)` == 1)
+			controlpanel -c dropdown
+		else
+			opparm dropdown paneldisplay (0)
+		endif
+		tabcell counter rc 0 0 0
+		exit
+
+	endif
+
+	set x = `round(panel("button","insideu")*par("button/panelw"))`
+	set y = `round(panel("button","insidev")*par("button/panelh"))`
+	set width = `par("dropdown/panelw")`
+	set height = `par("dropdown/panelh")`
+
+	#set horizontal dir
+	if (`tabr("$gadget/local/define","dropdowndirh",1)` == "right")
+		if (`tabr("$gadget/local/define","window",1)` == 1)
+			set x = `-$x+$width/2-2`
+		else
+			set x = 'par("label/panelw")*par("label/paneldisplay")'
+		endif
+	else
+		if (`tabr("$gadget/local/define","window",1)` == 1)
+			set x = `-$x-$width/2+par("button/panelw")+2`
+		else
+			set x = `par("label/panelw")*par("label/paneldisplay")+par("button/panelw")-$width+4`
+		endif
+	endif
+
+	#set vertical dir
+	if (`tabr("$gadget/local/define","dropdowndirv",1)` == "down")
+
+		if (`tabr("$gadget/local/define","window",1)` == 1)
+			set y = `-$y-3-$height/2-1`
+		else
+			set y = '-par("panelh")-1'
+		endif
+
+	else
+
+		if (`tabr("$gadget/local/define","window",1)` == 1)
+			set y = `-$y+$height/2+par("button/panelh")+3`
+		else
+			set y = 'par("button/panelh")+5'
+		endif
+
+	endif
+
+	if (`tabr("$gadget/local/define","window",1)` == 1)
+		controlpanel -b $gadget/dropdown -o $gadget/dropdown -f -m $x $y
+	else
+		opparm $gadget/dropdown panelx ($x) panely ($y) paneldisplay (1)
+	endif
+
+	set selected = `clamp(tab("selected",0,1),0,9999)`
+
+	run dropdown/set $selected
+	
+	tabcell counter rc 0 0 1
+
+endif
