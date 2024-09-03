@@ -1,0 +1,27 @@
+if ($arg3 == -1)
+	exit
+endif
+
+set rowid = $arg3
+set rowvalue = `tab("$gadget/alldata",$rowid,0)`
+
+tabdelete $gadget/selected a
+for i=0 to `tabnc("$gadget/alldata")-1`
+
+	tabinsert $gadget/selected c "`tab("$gadget/alldata",$rowid,$i)`"
+
+end
+
+set currentdepth = `tab("$controlpanel/current",0,0)`
+if(`par("$controlpanel/switch1/index")` == 0)
+
+	set newdepth = `$currentdepth-$rowid-1`
+
+else
+
+	set newdepth = `$currentdepth+$rowid`
+
+endif
+tabcell $controlpanel/current rc 0 0 $newdepth
+desk -p `tab("$gadget/selected",0,0)` $pane
+controlpanel -c ..
