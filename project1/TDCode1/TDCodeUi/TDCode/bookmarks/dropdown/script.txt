@@ -1,0 +1,25 @@
+if ($arg3 != -1)
+
+	set selected = `panel("list/list","cellselectid")`
+
+	if (`tabr("$gadget/local/define","window",1)` == 1)
+		controlpanel -c $list
+	else
+		opparm $list paneldisplay (0)
+	endif
+	tabcell $gadget/counter rc 0 0 0
+	controlpanel -s list/list celloverid -1
+	controlpanel -s $gadget/button state 0
+
+	if ($selected != -1)
+
+		set digit = `$selected%par("list/list/tablerows")`
+		set text = `tab("$gadget/data",$digit,0)`
+		set id = $digit
+		tabcell $gadget/selected rc 0 0 "$text"
+		tabcell $gadget/selected rc 0 1 "$id"
+		run $gadget/script $digit
+
+	endif
+
+endif
