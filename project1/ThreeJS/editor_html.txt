@@ -1,0 +1,260 @@
+< !DOCTYPE html >
+    <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>Three.js Model Editor for TouchDesigner</title>
+                    <style>
+                        body {margin: 0; overflow: hidden; }
+                        canvas {display: block; }
+                        #gui {position: absolute; top: 10px; right: 10px; z-index: 10; }
+                    </style>
+                    <script type="importmap">
+                        {
+                            "imports": {
+                            "three": "https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js",
+                        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/"
+            }
+        }
+                    </script>
+                </head>
+                <body>
+                    <div id="gui"></div>
+                    <script type="module">
+                        import * as THREE from 'three';
+                        import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+                        import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+                        import {OBJLoader} from 'three/addons/loaders/OBJLoader.js';
+                        import {FBXLoader} from 'three/addons/loaders/FBXLoader.js';
+                        import {GUI} from 'three/addons/libs/lil-gui.module.min.js';
+                        import {GLTFExporter} from 'three/addons/exporters/GLTFExporter.js';
+                        import {OBJExporter} from 'three/addons/exporters/OBJExporter.js';
+
+                        const scene = new THREE.Scene();
+                        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                        const renderer = new THREE.WebGLRenderer({antialias: true});
+                        document.body.appendChild(renderer.domElement);
+                        renderer.setSize(window.innerWidth, window.innerHeight);
+
+                        const gridHelper = new THREE.GridHelper(100, 100);
+                        scene.add(gridHelper);
+
+                        const ambientLight = new THREE.AmbientLight(0x404040);
+                        scene.add(ambientLight);
+
+                        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+                        directionalLight.position.set(5, 10, 7.5);
+                        scene.add(directionalLight);
+
+                        camera.position.set(10, 10, 10);
+                        camera.lookAt(0, 0, 0);
+
+                        const controls = new OrbitControls(camera, renderer.domElement);
+                        controls.enableDamping = true;
+                        controls.dampingFactor = 0.05;
+
+                        const gui = new GUI({container: document.getElementById('gui')});
+
+                        let currentModel = null;
+                        const params = {
+                            loadFile: function() {
+                const input = document.createElement('input');
+                        input.type = 'file';
+                        input.accept = '.gltf,.glb,.obj,.fbx';
+                        input.onchange = handleFileUpload;
+                        input.click();
+            },
+                        saveFormat: 'gltf',
+                        fileName: 'model',
+                        saveFile: saveModel
+        };
+
+                        gui.add(params, 'loadFile').name('Load Model');
+                        gui.add(params, 'saveFormat', ['gltf', 'glb', 'obj', 'fbx']).name('Save Format');
+                        gui.add(params, 'fileName').name('File Name');
+                        gui.add(params, 'saveFile').name('Save Model');
+
+                        function handleFileUpload(event) {
+            const file = event.target.files[0];
+                        if (!file) return;
+
+                        const reader = new FileReader();
+                        reader.onload = function (e) {
+                const contents = e.target.result;
+                        const fileExtension = file.name.split('.').pop().toLowerCase();
+
+                        let loader;
+                        switch(fileExtension) {
+                    case 'gltf':
+                        case 'glb':
+                        loader = new GLTFLoader();
+                        break;
+                        case 'obj':
+                        loader = new OBJLoader();
+                        break;
+                        case 'fbx':
+                        loader = new FBXLoader();
+                        break;
+                        default:
+                        console.error('Unsupported file format');
+                        return;
+                }
+
+                loader.parse(contents, '', (loadedObject) => {
+                    if (currentModel) scene.remove(currentModel);
+                        currentModel = (loadedObject.scene) ? loadedObject.scene : loadedObject;
+                        scene.add(currentModel);
+                        addModelToGUI(currentModel, file.name);
+                });
+            };
+
+                        if (file.name.endsWith('.glb') || file.name.endsWith('.fbx')) {
+                            reader.readAsArrayBuffer(file);
+            } else {
+                            reader.readAsText(file);
+            }
+        }
+
+                        function addModelToGUI(model, name) {
+            const modelFolder = gui.addFolder(name);
+                        modelFolder.add(model.position, 'x', -10, 10).name('Position X').listen();
+                        modelFolder.add(model.position, 'y', -10, 10).name('Position Y').listen();
+                        modelFolder.add(model.position, 'z', -10, 10).name('Position Z').listen();
+                        modelFolder.add(model.scale, 'x', 0.1, 5).name('Scale X').listen();
+                        modelFolder.add(model.scale, 'y', 0.1, 5).name('Scale Y').listen();
+                        modelFolder.add(model.scale, 'z', 0.1, 5).name('Scale Z').listen();
+                        modelFolder.open();
+        }
+
+                    function saveModel() {
+    if (!currentModel) {
+                        alert('No model to save!');
+                    return;
+    }
+
+                    const format = params.saveFormat;
+                    const fileName = params.fileName || 'model';
+
+                    if (format === 'obj') {
+                        let objContent = '';
+                    let vertexIndex = 1;
+
+        currentModel.traverse((child) => {
+            if (child.isMesh) {
+                const geometry = child.geometry;
+                    const positionAttribute = geometry.attributes.position;
+                    const colorAttribute = geometry.attributes.color;
+                    const normalAttribute = geometry.attributes.normal;
+
+                    // Write vertices with colors
+                    for (let i = 0; i < positionAttribute.count; i++) {
+                    const x = positionAttribute.getX(i);
+                    const y = positionAttribute.getY(i);
+                    const z = positionAttribute.getZ(i);
+                    let line = `v ${x} ${y} ${z}`;
+
+                    if (colorAttribute) {
+                        const r = colorAttribute.getX(i);
+                    const g = colorAttribute.getY(i);
+                    const b = colorAttribute.getZ(i);
+                    line += ` ${r} ${g} ${b}`;
+                    }
+
+                    objContent += line + '\n';
+                }
+
+                    // Write normals
+                    if (normalAttribute) {
+                    for (let i = 0; i < normalAttribute.count; i++) {
+                        const nx = normalAttribute.getX(i);
+                    const ny = normalAttribute.getY(i);
+                    const nz = normalAttribute.getZ(i);
+                    objContent += `vn ${nx} ${ny} ${nz}\n`;
+                    }
+                }
+
+                    // Write faces
+                    if (geometry.index) {
+                    for (let i = 0; i < geometry.index.count; i += 3) {
+                        const a = geometry.index.getX(i) + vertexIndex;
+                    const b = geometry.index.getX(i + 1) + vertexIndex;
+                    const c = geometry.index.getX(i + 2) + vertexIndex;
+                    objContent += `f ${a}//${a} ${b}//${b} ${c}//${c}\n`;
+                    }
+                } else {
+                    for (let i = 0; i < positionAttribute.count; i += 3) {
+                        const a = i + vertexIndex;
+                    const b = i + 1 + vertexIndex;
+                    const c = i + 2 + vertexIndex;
+                    objContent += `f ${a}//${a} ${b}//${b} ${c}//${c}\n`;
+                    }
+                }
+
+                    vertexIndex += positionAttribute.count;
+            }
+        });
+
+                    const data = {
+                        fileName: `${fileName}.obj`,
+                    objData: btoa(objContent),
+                    format: 'obj'
+        };
+
+                    sendModelData(data);
+            } else if (format === 'gltf' || format === 'glb') {
+                const exporter = new GLTFExporter();
+                exporter.parse(currentModel, (result) => {
+                        let resultString;
+                    if (result instanceof ArrayBuffer) {
+                        resultString = btoa(String.fromCharCode.apply(null, new Uint8Array(result)));
+                    } else {
+                        resultString = btoa(JSON.stringify(result));
+                    }
+
+                    const data = {
+                        fileName: `${fileName}.${format}`,
+                    format: format,
+                    data: resultString
+                    };
+
+                    sendModelData(data);
+                }, {binary: format === 'glb'});
+            } else {
+                        alert('Unsupported format. Please choose OBJ, GLTF, or GLB.');
+            }
+        }
+
+                    function sendModelData(data) {
+                        fetch('/save-model', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify(data)
+                        })
+                            .then(response => response.json())
+                            .then(data => {
+                                console.log(data);
+                                alert('Model saved successfully!');
+                            })
+                            .catch(error => {
+                                console.error('Error:', error);
+                                alert('Failed to save model. Check console for details.');
+                            });
+        }
+
+                    function animate() {
+                        requestAnimationFrame(animate);
+                    controls.update();
+                    renderer.render(scene, camera);
+        }
+                    animate();
+
+        window.addEventListener('resize', () => {
+                        camera.aspect = window.innerWidth / window.innerHeight;
+                    camera.updateProjectionMatrix();
+                    renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+                </script>
+            </body>
+        </html>
