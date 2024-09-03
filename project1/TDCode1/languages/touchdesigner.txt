@@ -1,0 +1,156 @@
+//touchdesigner.js
+// touchdesigner language support for Monaco Editor
+
+class TrieNode {
+    constructor() {
+        this.children = {};
+        this.isEndOfWord = false;
+        this.suggestion = null;
+    }
+}
+
+class Trie {
+    constructor() {
+        this.root = new TrieNode();
+    }
+
+    insert(word, suggestion) {
+        let node = this.root;
+        for (let char of word) {
+            if (!node.children[char]) {
+                node.children[char] = new TrieNode();
+            }
+            node = node.children[char];
+        }
+        node.isEndOfWord = true;
+        node.suggestion = suggestion;
+    }
+
+    search(prefix) {
+        let node = this.root;
+        for (let char of prefix) {
+            if (!node.children[char]) {
+                return [];
+            }
+            node = node.children[char];
+        }
+        return this._collectSuggestions(node, prefix);
+    }
+
+    _collectSuggestions(node, prefix) {
+        let suggestions = [];
+        if (node.isEndOfWord) {
+            suggestions.push(node.suggestion);
+        }
+        for (let char in node.children) {
+            suggestions = suggestions.concat(this._collectSuggestions(node.children[char], prefix + char));
+        }
+        return suggestions;
+    }
+}
+
+define('touchdesigner', ['vs/editor/editor.main'], function(monaco) {
+    // Extend Python language with TouchDesigner-specific features
+    const pythonLanguage = monaco.languages.getLanguages().find(lang => lang.id === 'python');
+    if (pythonLanguage && pythonLanguage.loader) {
+        pythonLanguage.loader().then(pythonApi => {
+            const originalProvider = pythonApi.language.tokenProvider;
+            pythonApi.language.tokenProvider = {
+                ...originalProvider,
+                tokenize: (line, state) => {
+                    const tokens = originalProvider.tokenize(line, state);
+                    // Add TouchDesigner-specific token rules
+                    tokens.tokens = tokens.tokens.map(token => {
+                        if (['op', 'me', 'parent', 'mod', 'ext'].includes(token.value)) {
+                            return { ...token, type: 'keyword.td' };
+                        }
+                        if (['cook', 'par', 'chop', 'sop', 'top', 'comp', 'dat'].includes(token.value)) {
+                            return { ...token, type: 'type.td' };
+                        }
+                        return token;
+                    });
+                    return tokens;
+                }
+            };
+        });
+    }
+
+    // TouchDesigner-specific keywords and functions
+    const tdKeywords = [
+        'op', 'me', 'parent', 'mod', 'ext', 'tdu', 'ui', 'project', 'absTime',
+        'panelValue', 'panel', 'sop', 'chop', 'top', 'comp', 'dat',
+        'cook', 'par', 'storage', 'fetch', 'store', 'run', 'openViewer',
+        'copyTo', 'destroy', 'create', 'appendRow', 'appendCol', 'clear',
+        'insertRow', 'insertCol', 'replaceRow', 'replaceCol', 'deleteRow', 'deleteCol'
+    ];
+
+    const tdFunctions = [
+        { label: 'op', kind: monaco.languages.CompletionItemKind.Function, insertText: 'op(\'${1:operator_name}\')', insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet, documentation: 'Reference an operator by name' },
+        
+        { label: 'parent', kind: monaco.languages.CompletionItemKind.Function, insertText: 'parent()', documentation: 'Reference to the parent operator' },
+
+    ];
+
+    // Network items (to be populated dynamically)
+    let networkItems = [];
+
+    // DAT content suggestions
+    let datTrie = new Trie();
+
+    
+
+    // Register a completion item provider that combines Python, TouchDesigner items, and DAT content
+    monaco.languages.registerCompletionItemProvider('python', {
+        provideCompletionItems: function(model, position) {
+            const textUntilPosition = model.getValueInRange({
+                startLineNumber: position.lineNumber,
+                startColumn: 1,
+                endLineNumber: position.lineNumber,
+                endColumn: position.column
+            });
+            const match = textUntilPosition.match(/\S+$/);
+            const prefix = match ? match[0] : '';
+
+            return {
+                suggestions: [
+                    ...tdKeywords.map(keyword => ({
+                        label: keyword,
+                        kind: monaco.languages.CompletionItemKind.Keyword,
+                        insertText: keyword
+                    })),
+                    ...tdFunctions,
+                    ...networkItems,
+                    ...datTrie.search(prefix)
+                ]
+            };
+        }
+    });
+
+    // Function to update network items
+    function updateNetworkItems(items) {
+        // Commented out to avoid issues with long paths
+        /*
+        networkItems = items.map(item => ({
+            label: item.name,
+            kind: monaco.languages.CompletionItemKind.Variable,
+            insertText: item.name,
+            documentation: `Path: ${item.path}`
+        }));
+        */
+    }
+
+    // Function to add DAT content suggestions
+    function addDatSuggestions(suggestions) {
+        //console.log("Adding DAT suggestions to TouchDesigner language:", suggestions);
+        datTrie = new Trie();
+        for (let suggestion of suggestions) {
+            datTrie.insert(suggestion.label, suggestion);
+        }
+    }
+
+    return {
+        updateNetworkItems: updateNetworkItems,
+        addDatSuggestions: addDatSuggestions
+    };
+});
+
