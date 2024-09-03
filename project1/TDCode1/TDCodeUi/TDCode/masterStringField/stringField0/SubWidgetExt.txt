@@ -1,0 +1,114 @@
+TDF = op.TDModules.mod.TDFunctions
+
+class SubWidgetExt:
+	"""
+	RockerExt description
+	"""
+
+	def __init__(self, ownerComp, indexComp=None):
+		# The component to which this extension is attached
+		self.ownerComp = ownerComp
+		if indexComp:
+			self.indexComp = indexComp
+		else:
+			self.indexComp = self.ownerComp
+
+	def onPanelEvent(self, event, panelValue):
+		"""
+		Panel exec events from widget
+		"""
+		pass
+
+	def onParSettingsChange(self, par, prev):
+		"""
+		Manages value changes widget settings parameters
+		"""
+		val = par.eval()
+		if par.name == self.parPrefix + 'runcommand':
+			enable = par.eval()
+			for suffix in ['commandon', 'commandoff', 'commandonvaluechange']:
+				p = self.prefixPar(suffix)
+				if p is not None:
+					p.enable = enable
+		elif par.name == self.parPrefix + 'horizontalmode':
+			fill = True if val == 'fill' else False
+			self.prefixPar('hfillweight').enable = fill
+			self.prefixPar('width').enable = not fill
+		elif par.name == self.parPrefix + 'verticalmode':
+			fill = True if val == 'fill' else False
+			self.prefixPar('vfillweight').enable = fill
+			self.prefixPar('height').enable = not fill
+		elif par.name in [self.parPrefix + 'bordera',
+						  self.parPrefix + 'borderb',
+						  self.parPrefix + 'border']:
+			getattr(parent.Widget.par, par.name + 'colorr').enable = par.eval()
+
+	def onParSettingsPulse(self, par):
+		"""
+		Manages pulse events for widget settings parameters
+		"""
+		if par.name == self.parPrefix + 'customizeinteraction':
+			self.makePanelExecute()
+
+	def onToggleEvent(self, event, panelValue):
+		if event == 'offToOn':
+			self.toggle()
+
+	def toggle(self):
+		index = self.indexComp.digits
+		valuePar = getattr(parent.Widget.par, 'Value' + str(index))
+		valuePar.val = 1 - valuePar.eval()
+
+	def prefixPar(self, suffix):
+		"""
+		Return a parameter prefixed by parPrefix
+		:param suffix: the par name after parPrefix (string)
+		:return: the parameter or None if not found
+		"""
+		return getattr(self.ownerComp.parent.Widget.par,
+					   self.parPrefix + suffix, None)
+
+	def getDockExpressionToOwner(self):
+		page = TDF.getCustomPage(self.ownerComp.parent.Widget, 'OPs')
+		expr = "me.dock.op('" + self.ownerComp.name + "')"
+		for p in page.pars:
+			if p.eval() == self.ownerComp:
+				expr = "me.dock.par." + p.name + ".eval()"
+				break
+		return expr
+
+	def makePanelExecute(self, panelExpr=None):
+		"""
+		Creates a panel execute DAT for running external code from the
+		widget that is connected to the button interaction receiver - which
+		is the ownerComp of this class
+
+		panelExpr: will be used as the expression in the panel parameter of the
+			panelExec. Defaults to "me.dock.op('" + self.ownerComp.name +"')"
+		"""
+		panelExecPar = self.PanelExecPar
+		peDat = panelExecPar.eval()
+		expr = self.getDockExpressionToOwner() \
+											if panelExpr is None else panelExpr
+		if not peDat:
+			peDat = self.ownerComp.parent.Widget.parent().create(
+				panelexecuteDAT, self.parPrefix + 'PanelExec')
+			peDat.nodeX = self.ownerComp.parent.Widget.nodeX - 200
+			peDat.nodeY = self.ownerComp.parent.Widget.nodeY
+			peDat.dock = self.ownerComp.parent.Widget
+			peDat.par.panel.expr = expr
+			peDat.par.ontooff = True
+			peDat.viewer = True
+			panelExecPar.val = peDat.name
+			panelExecPar.enable = True
+			panelExecPar.readOnly = True
+			self.ownerComp.op('panelExecOPExec').cook(force=True)
+		else:
+			if expr not in peDat.par.panel.expr:
+				peDat.par.panel.expr += ', ' + expr
+		panelExecPar.eval().par.edit.pulse()
+
+	@property
+	def PanelExecPar(self):
+		return getattr(parent.Widget.par, self.parPrefix + 'panelexec', None)
+
