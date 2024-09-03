@@ -1,0 +1,270 @@
+"""
+Extension classes enhance TouchDesigner components with python. An
+extension is accessed via ext.ExtensionClassName from any operator
+within the extended component. If the extension is promoted via its
+Promote Extension parameter, all its attributes with capitalized names
+can be accessed externally, e.g. op('yourComp').PromotedFunction().
+
+Help: search "Extensions" in wiki
+"""
+
+from TDStoreTools import StorageManager
+TDF = op.TDModules.mod.TDFunctions
+TDJSON = op.TDModules.mod.TDJSON
+popDialog = op.TDResources.op('popDialog')
+
+class VirtualFileExt:
+	"""
+	VirtualFileExt description
+	"""
+	def __init__(self, ownerComp):
+		# The component to which this extension is attached
+		self.ownerComp = ownerComp
+		self.ownerComp.clearScriptErrors()
+
+	def onParPulse(self, par):
+		self.ownerComp.clearScriptErrors()
+		if par.name == 'Add':
+			self.AddFile()
+		elif par.name == 'List':
+			self.Find()
+		elif par.name == 'Remove':
+			self.RemoveFiles('*')
+		elif par.name == 'Addfromtable':
+			self.AddFromTable()
+		elif par.name == 'Removesingle':
+			self.RemoveSingle()
+		elif par.name == 'Addfromtop':
+			self.AddFromImage()
+		elif par.name == 'Rename':
+			self.openRenameDialog()
+
+	def onParValueChange(self, par, prev):
+		return
+
+	def runCommand(self, command, layoutRetValue=False, limitRetValueSize=False,
+						asExec=False):
+		# used for logging
+		if self.ownerComp.par.Echocommands.eval():
+			if len(command) > 256:
+				print(command[:256] + '...')
+			else:
+				print(command)
+		if asExec:
+			exec(command)
+		else:
+			retVal = eval(command)
+			if retVal is not None and self.ownerComp.par.Echocommands.eval():
+				if layoutRetValue and retVal:
+					retValStr = '\n[\n' 
+					for item in retVal:
+						retValStr += '\t' + repr(item) +',\n'
+					retValStr += ']'
+				else:
+					retValStr = repr(retVal)
+				if limitRetValueSize and len(retValStr) > 256:
+					retValStr = retValStr[:256] + '...'
+				print('   Returned:', retValStr)
+			return retVal
+
+	def AddFile(self, filePath=None, overrideName=None, removeAllFirst=None,
+					returnVirtualPath=False):    	
+		"""
+	    Add an embedded file from disk to the component with an option to 
+		override the name.
+
+		Args:
+			filePath: The path of the file on disk to add.
+			overrideName: When specified, will override the name of the file in 
+						VFS.
+			removeAllFirst: if True, remove all the virtual files first,
+						default = par.Removeallbeforeadds
+			returnVFSPath: if True, return the virtual path instead of VFSFile
+		Returns:
+			VFSFile or virtual path
+		"""
+		if filePath is None:
+			filePath = self.ownerComp.par.Filesource.eval()
+		if removeAllFirst is None and self.ownerComp.par.Removeallbeforeadds:
+			self.RemoveFiles()
+		command = "op('" + self.ownerComp.path + "').vfs.addFile('" + \
+					filePath + "', overrideName=" + ('None' if overrideName is None else "'" + overrideName + "'") + ")"
+		retValue = self.runCommand(command)
+		if returnVirtualPath:
+			return retValue.virtualPath
+		else:
+			return retValue
+
+	def AddFromTable(self, table=None, removeAllFirst=None,
+					 returnVirtualPath=False):
+		"""
+		Add all files from 'path' column in input table. If there is an
+		'overrideName' column, use this for virtual names. Returns a list of 
+		VFSFiles OR virtual paths 
+
+		Args:
+			table: table of filepaths, default = wired input or
+							par.Pathstable
+			removeAllFirst: if True, remove all the virtual files first,
+							default = par.Removeallbeforeadds
+			returnVirtualPath: if True, return list of vfs paths instead of 
+							VFSFiles
+
+		Returns:
+			list of VFSFiles OR virtual paths
+		"""
+		if table is None:
+			table = self.ownerComp.op('inPaths')
+		if not isinstance(table, DAT) or not table.col('path'):
+			self.ownerComp.addScriptError('No path column in paths table')
+			raise NameError('No path column in paths table')
+		paths = [c.val for c in table.col('path')][1:]
+		if table.col('overrideName'):
+			overrideNames = [c.val for c in table.col('overrideName')][1:]
+		else:
+			overrideNames = None
+		if removeAllFirst is None and self.ownerComp.par.Removeallbeforeadds:
+			self.RemoveFiles('*')
+		retVal = []
+		for i, p in enumerate(paths):
+			overrideName = overrideNames[i] if overrideNames else None
+			retVal.append(self.AddFile(p, overrideName=overrideName, 
+					removeAllFirst=False, returnVirtualPath=returnVirtualPath))
+		return retVal
+
+	def AddFromImage(self, top=None, name=None, filetype=None,
+					 removeAllFirst=None, returnVirtualPath=False):
+		"""
+		Add an image file created from the provided TOP, using VFS.addByteArray.
+
+		Args:
+			top: the TOP image to use. Default = par.Imagesourcetop
+			name: the name to be stored with the image. Default = 
+					par.Virtualfileimagename + par.Virtualfileimagefiletype
+			filetype: the file filetype to save virtual file in. For available
+					formats, see https://docs.derivative.ca/TOP_Class
+					saveByteArray function.	Default =
+					par.Virtualfileimagefiletype
+			removeAllFirst: if True, remove all the virtual files first,
+					default = par.Removeallbeforeadds
+			returnVirtualPath: if True, return the vfs path instead of the vfs 
+					info dictionary
+		Returns:
+			VFSFile or virtual path
+		"""
+		if top is None:
+			top = self.ownerComp.par.Imagesourcetop.eval()
+		if not isinstance(top, TOP):
+			self.ownerComp.addScriptError('Invalid Image Source TOP')
+			raise TypeError('Invalid Image Source TOP')
+		if filetype is None:
+			filetype = self.ownerComp.par.Virtualfileimagefiletype.eval()
+		autoincrement = False
+		if not name:
+			name = self.ownerComp.par.Virtualfileimagename \
+				 	+ self.ownerComp.par.Virtualfileimagefiletype
+			autoincrement = True
+		if removeAllFirst is None and self.ownerComp.par.Removeallbeforeadds:
+			self.RemoveFiles('*')
+		command = "op('" + top.path + "').saveByteArray('" + filetype + "')"
+		byteArray = self.runCommand(command, limitRetValueSize=True)
+		#print(byteArray)
+		command = "op('" + self.ownerComp.path + "').vfs.addByteArray(" + \
+					str(byteArray) + ", '" + name + "')"
+		retValue = self.runCommand(command)
+		if autoincrement:
+			if self.ownerComp.par.Autoincrementname.eval():
+				self.ownerComp.par.Virtualfileimagename = \
+						TDF.incrementStringDigits(
+								self.ownerComp.par.Virtualfileimagename.eval())
+		if returnVirtualPath:
+			return retValue.virtualPath
+		else:
+			return retValue
+
+	def Find(self, pattern='*'):
+		"""
+		Finds all files in VFS with names matching the pattern. Returns a list 
+		of VFSFile objects.
+
+		Args:
+			pattern: The pattern to match against.
+
+		Returns:
+			list of VFSFiles
+		"""
+		command = "op('" + self.ownerComp.path + "').vfs.find(pattern='" + \
+					pattern +"')"
+		return self.runCommand(command, layoutRetValue=True)
+
+	def RemoveFiles(self, pattern='*'):
+		"""
+		Destroys any virtual file from the component that matches with the
+		supplied pattern.
+
+		Args:
+            pattern: The pattern to match against.
+
+		"""
+		print('virtualFiles = ')
+		command = "op('" + self.ownerComp.path + "').vfs.find(pattern='" + \
+					pattern +"')"
+		virtualFiles = self.runCommand(command, layoutRetValue=True)
+		command = "for virtualFile in virtualFiles:\n\tvirtualFile.destroy()"
+		print(command)
+		exec(command)
+
+	def RemoveSingle(self, index=None):
+		"""
+		Destroy a virtual file by index
+
+		Args:
+			index: Index of file to remove. Default = par.Virtualfileindex
+        Returns:
+        	True if file successfully removed
+		"""
+		if index is None:
+			index = self.ownerComp.par.Virtualfileindex.eval()
+		command = "op('" + self.ownerComp.path + "').vfs.find()[" + str(index) \
+															+ "].destroy()"
+		return self.runCommand(command)
+
+	def openRenameDialog(self):
+		oldName = self.ownerComp.vfs.find()[
+				self.ownerComp.par.Virtualfileindex.eval()].name
+		popDialog.OpenDefault('Old File Name:\n' + oldName +
+							  '\n\nEnter New File Name:', 'Rename Virtual File',
+							  buttons=['Rename', 'Cancel'], enterButton=1,
+							  escButton=2, textEntry=oldName, details=oldName,
+							  callback=self.onRenameDialog)
+
+	def onRenameDialog(self, info):
+		if info['button'] == 'Rename' and info['enteredText']:
+			self.Rename(info['details'], info['enteredText'])
+
+	def Rename(self, oldName, newName):
+		"""
+		Change the name of a virtual file
+
+		Args:
+			oldName: name of file to rename
+			newName: new name for file
+		"""
+		command = "op('" + self.ownerComp.path + "').vfs['" + oldName + \
+				  "'].name = '" + newName + "'"
+		return self.runCommand(command, asExec=True)
+
+	def VFSFileFromIndex(self, index):
+		"""
+		Get a VFSFile by index
+
+		Args:
+			index: index of the file
+
+		Returns:
+			VFSFile
+		"""
+		try:
+			return self.ownerComp.vfs.find()[index]
+		except:
+			return ''
