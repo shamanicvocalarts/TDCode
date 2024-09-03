@@ -1,0 +1,46 @@
+// websocket.js
+
+let ws;
+
+function setupWebSocket() {
+    ws = new WebSocket('ws://' + window.location.host);
+
+    ws.onopen = function(event) {
+        console.log("WebSocket connection opened");
+    };
+
+    ws.onmessage = function(event) {
+        try {
+            var data = JSON.parse(event.data);
+            handleWebSocketMessage(data);
+        } catch (error) {
+            console.log("Error processing WebSocket message: " + error);
+        }
+    };
+
+    ws.onerror = function(error) {
+        console.log("WebSocket error: " + error);
+    };
+
+    ws.onclose = function(event) {
+        console.log("WebSocket connection closed");
+    };
+}
+
+function sendWebSocketMessage(message) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(message));
+    } else {
+        console.error('WebSocket is not connected');
+    }
+}
+
+function streamGeometryData(geometryData) {
+    sendWebSocketMessage({
+        action: 'streamGeometry',
+        geometryData: geometryData
+    });
+}
+
+export { setupWebSocket, streamGeometryData }
+
