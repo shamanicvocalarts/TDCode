@@ -1,0 +1,28 @@
+def safe_process(target_path, source_path):
+    target = op(target_path)
+    source = op(source_path)
+    
+    print(f"Target path: {target_path}, Found: {target is not None}")
+    print(f"Source path: {source_path}, Found: {source is not None}")
+    
+    if not target or not source:
+        print(f"Error: Target {target_path} or source {source_path} not found.")
+        return
+
+    source_ops = source.ops('*')
+    for i, cont in enumerate(source_ops):
+        if _op := target.op(cont.name):
+            _op.destroy()
+        newOp = target.copy(cont)
+        newOp.nodeX = 400 + i*200
+        newOp.nodeY = -400
+        if target.op("emptypanel"):
+            newOp.inputCOMPConnectors[0].connect(target.op("emptypanel").outputCOMPConnectors[0])
+
+# Process bookmark_bar with mainPanelUi ops
+safe_process('/ui/dialogs/bookmark_bar', 'mainPanelUi')
+
+# Process panebar with TDCodeUi ops
+safe_process('/ui/panes/panebar', 'TDCodeUi')
+
+print("Script execution completed.")
