@@ -1,0 +1,31 @@
+def onTableChange(dat):
+    string_menus_to_populate = ['Datsmenu']
+    if dat and dat.numRows > 1:
+        datPaths = [dat[row, 'path'].val for row in range(1, dat.numRows)]
+        datRelPaths = [dat[row, 'path'].val for row in range(1, dat.numRows)]
+        for menu in string_menus_to_populate:
+            parent_param = parent().par[menu]
+            if parent_param:
+                parent_param.menuNames = datPaths
+                parent_param.menuLabels = datRelPaths  # Use paths for labels as well
+
+        for path in datPaths:
+            try:
+                target_dat = op(path)
+                if target_dat and target_dat.isDAT and not target_dat.text:
+                    target_dat.text = '\n\n'  # Add two blank lines
+            except Exception as e:
+                pass
+    else:
+        for menu in string_menus_to_populate:
+            parent_param = parent().par[menu]
+            if parent_param:
+                parent_param.menuNames = []
+                parent_param.menuLabels = []
+    op('webserver1_callbacks').module.UpdateDatsListInEditor()
+    return
+
+def GetDatsList():
+    datPaths = parent().par.Datsmenu.menuNames
+    datRelPaths = parent().par.Datsmenu.menuLabels
+    return [{'path': datPaths[i], 'name': datPaths[i]} for i in range(len(datPaths))] 
