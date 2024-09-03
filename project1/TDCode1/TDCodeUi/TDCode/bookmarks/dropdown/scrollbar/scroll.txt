@@ -1,0 +1,15 @@
+if ($arg3 == 0)
+	exit
+endif
+set offset = `$arg3*5`
+set current = `par("knob/panely")`
+set max = `par("knob/repositionymax")`
+
+set new = `clamp($current+$offset,0,$max)`
+
+
+if ($current <= $max && $current >= 0)
+
+	opparm knob panely ($new)
+
+endif
