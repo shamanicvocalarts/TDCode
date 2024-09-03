@@ -1,0 +1,29 @@
+def onValueChange(par, prev):
+	parNum = par.name[-1]
+	for name in ['Onvaluechangescript', 'Ontooffscript', 'Offtoonscript']:
+		try:
+			p = getattr(parent.Widget.par, name + parNum)
+		except:
+			return
+		if p:
+			if p.name.startswith('Onv'):
+				run(p, fromOP = parent.Widget, asParameter=True)
+			elif p.name.startswith('Ont') and prev and not par.eval():
+				run(p, fromOP = parent.Widget, asParameter=True)
+			elif p.name.startswith('Off') and not prev and par.eval():
+				run(p, fromOP = parent.Widget, asParameter=True)
+
+def onPulse(par):
+	if not parent.Widget.par.Valueparexec.eval():
+		parexec = parent.Widget.parent().create(parameterexecuteDAT, 'valueParExec')
+		parexec.nodeY = parent.Widget.nodeY
+		parexec.nodeX = parent.Widget.nodeX - 200
+		parexec.dock = parent.Widget
+		parexec.par.op.expr = 'me.dock'
+		parexec.par.pars = 'Value?'
+		parexec.par.builtin = False
+		parent.Widget.par.Valueparexec = parexec.name
+		parent.Widget.par.Valueparexec.enable = True
+		parent.Widget.par.Valueparexec.readOnly = True
+		op('valueParOPExec').cook(force=True)
+	parent.Widget.par.Valueparexec.eval().par.edit.pulse()
