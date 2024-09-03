@@ -1,0 +1,1 @@
+opparm dropdown/scrollbar/knob panely (`par("dropdown/scrollbar/knob/repositionymax")`)
