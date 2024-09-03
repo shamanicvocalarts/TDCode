@@ -1,0 +1,89 @@
+import os
+import json
+import base64
+
+def save_model(request, response):
+    try:
+        data = json.loads(request['data'])
+        
+        file_name = data['fileName']
+        format = data['format']
+        
+        save_dir = op('AssetDirectory').text.strip()
+        os.makedirs(save_dir, exist_ok=True)
+        
+        if format == 'obj':
+            obj_data = base64.b64decode(data['objData']).decode('utf-8')
+            file_path = os.path.join(save_dir, file_name)
+            
+            with open(file_path, 'w') as f:
+                f.write(obj_data)
+        
+        elif format in ['gltf', 'glb']:
+            file_data = base64.b64decode(data['data'])
+            file_path = os.path.join(save_dir, file_name)
+            
+            with open(file_path, 'wb') as f:
+                f.write(file_data)
+        
+        else:
+            raise ValueError(f"Unsupported format: {format}")
+        
+        response['statusCode'] = 200
+        response['statusReason'] = 'OK'
+        response['data'] = json.dumps({'message': 'Model saved successfully', 'path': file_path})
+        response['content-type'] = 'application/json'
+    except Exception as e:
+        response['statusCode'] = 500
+        response['statusReason'] = 'Internal Server Error'
+        response['data'] = json.dumps({'error': str(e)})
+        response['content-type'] = 'application/json'
+    
+    return response
+
+def handle_streamed_geometry(request, response):
+    try:
+        data = json.loads(request['data'])
+        geometry_data = data['geometryData']
+        
+        # Update points DAT
+        update_dat(op('points_dat'), geometry_data['points'], 
+                   ['index', 'P(0)', 'P(1)', 'P(2)', 'uv(0)', 'uv(1)', 'N(0)', 'N(1)', 'N(2)', 'Cd(0)', 'Cd(1)', 'Cd(2)', 'Cd(3)'])
+        
+        # Update primitives DAT
+        update_dat(op('prims_dat'), geometry_data['primitives'], 
+                   ['index', 'vertices'])
+
+        # Update vertices DAT
+        update_dat(op('verts_dat'), geometry_data['vertices'], 
+                   ['index', 'vindex', 'uv(0)', 'uv(1)', 'Cd(0)', 'Cd(1)', 'Cd(2)', 'Cd(3)'])
+
+        # Update details DAT
+        update_details_dat(op('details_dat'), geometry_data['details'])
+        
+        response['statusCode'] = 200
+        response['statusReason'] = 'OK'
+        response['data'] = json.dumps({'message': 'Geometry data received and processed'})
+        response['content-type'] = 'application/json'
+    except Exception as e:
+        response['statusCode'] = 500
+        response['statusReason'] = 'Internal Server Error'
+        response['data'] = json.dumps({'error': str(e)})
+        response['content-type'] = 'application/json'
+    
+    return response
+
+def update_dat(dat, data, headers):
+    dat.clear()
+    dat.appendRow(headers)
+    for i, item in enumerate(data):
+        if isinstance(item, dict):
+            row = [i] + [item.get(key.split('(')[0], [''])[int(key.split('(')[1][0])] if '(' in key else item.get(key, '') for key in headers[1:]]
+        else:
+            row = [i] + item
+        dat.appendRow(row)
+
+def update_details_dat(dat, details):
+    dat.clear()
+    for key, value in details.items():
+        dat.appendRow([key, value]) 
