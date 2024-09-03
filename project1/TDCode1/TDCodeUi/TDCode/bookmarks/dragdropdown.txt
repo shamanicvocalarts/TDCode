@@ -1,0 +1,6 @@
+set selected = `panel("dropdown/list/list","celloverid")`
+if (`panel("button","inside")` == 0 && $selected != -1)
+
+	run dropdown/script 0 0 -1
+
+endif
