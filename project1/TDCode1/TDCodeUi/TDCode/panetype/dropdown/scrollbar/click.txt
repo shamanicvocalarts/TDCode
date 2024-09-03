@@ -1,0 +1,5 @@
+set y = `clamp($arg3,0,1)`
+set y = `fit($y,0,1,0,par("../panelh"))-par("knob/panelh")*0.5`
+set y = `clamp($y,0,par("knob/repositionymax"))`
+
+opparm knob panely ($y)
