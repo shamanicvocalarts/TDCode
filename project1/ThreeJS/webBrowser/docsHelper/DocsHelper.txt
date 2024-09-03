@@ -1,0 +1,5 @@
+"""
+Generic docs help button and pulse par system
+"""
+
+DocsHelper = op.TDResources.mod.DocsHelper.DocsHelper
