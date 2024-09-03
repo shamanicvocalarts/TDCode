@@ -1,0 +1,12 @@
+#this is the nodename panel event exection DAT
+
+if ($arg1 == "offtoon" )
+
+	opparm parentoverride dat '$colorexp/titlebar_on'
+
+else if ($arg1 == "ontooff" )
+
+	opparm parentoverride dat '$colorexp/titlebar_off' 
+
+endif
+
