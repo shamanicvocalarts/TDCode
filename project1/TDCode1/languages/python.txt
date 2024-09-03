@@ -1,0 +1,635 @@
+// Python language support for Monaco Editor
+monaco.languages.register({ id: 'python' });
+
+monaco.languages.setLanguageConfiguration('python', {
+    comments: {
+        lineComment: '#',
+        blockComment: ["'''", "'''"]
+    },
+    brackets: [
+        ['{', '}'],
+        ['[', ']'],
+        ['(', ')']
+    ],
+    autoClosingPairs: [
+        { open: '{', close: '}' },
+        { open: '[', close: ']' },
+        { open: '(', close: ')' },
+        { open: '"', close: '"', notIn: ['string'] },
+        { open: "'", close: "'", notIn: ['string', 'comment'] }
+    ],
+    surroundingPairs: [
+        { open: '{', close: '}' },
+        { open: '[', close: ']' },
+        { open: '(', close: ')' },
+        { open: '"', close: '"' },
+        { open: "'", close: "'" }
+    ],
+    onEnterRules: [
+        {
+            beforeText: new RegExp(
+                '^\\s*(?:def|class|for|if|elif|else|while|try|with|finally|except|async|match|case).*?:\\s*$'
+            ),
+            action: { indentAction: monaco.languages.IndentAction.Indent }
+        }
+    ],
+    folding: {
+        offSide: true,
+        markers: {
+            start: new RegExp('^\\s*#region\\b'),
+            end: new RegExp('^\\s*#endregion\\b')
+        }
+    }
+});
+
+monaco.languages.setMonarchTokensProvider('python', {
+    defaultToken: '',
+    tokenPostfix: '.python',
+
+    keywords: [
+        'False', 'None', 'True', '_', 'and', 'as', 'assert', 'async', 'await',
+        'break', 'case', 'class', 'continue', 'def', 'del', 'elif', 'else',
+        'except', 'finally', 'for', 'from', 'global', 'if', 'import', 'in',
+        'is', 'lambda', 'match', 'nonlocal', 'not', 'or', 'pass', 'raise',
+        'return', 'try', 'while', 'with', 'yield',
+        'int', 'float', 'long', 'complex', 'hex'
+    ],
+
+    brackets: [
+        { open: '{', close: '}', token: 'delimiter.curly' },
+        { open: '[', close: ']', token: 'delimiter.bracket' },
+        { open: '(', close: ')', token: 'delimiter.parenthesis' }
+    ],
+
+    tokenizer: {
+        root: [
+            { include: '@whitespace' },
+            { include: '@numbers' },
+            { include: '@strings' },
+
+            [/[,:;]/, 'delimiter'],
+            [/[{}\[\]()]/, '@brackets'],
+
+            [/@[a-zA-Z_]\w*/, 'tag'],
+            [
+                /[a-zA-Z_]\w*/,
+                {
+                    cases: {
+                        '@keywords': 'keyword',
+                        '@default': 'identifier'
+                    }
+                }
+            ]
+        ],
+
+        whitespace: [
+            [/\s+/, 'white'],
+            [/(^#.*$)/, 'comment'],
+            [/'''/, 'string', '@endDocString'],
+            [/"""/, 'string', '@endDblDocString']
+        ],
+        endDocString: [
+            [/[^']+/, 'string'],
+            [/\\'/, 'string'],
+            [/'''/, 'string', '@popall'],
+            [/'/, 'string']
+        ],
+        endDblDocString: [
+            [/[^"]+/, 'string'],
+            [/\\"/, 'string'],
+            [/"""/, 'string', '@popall'],
+            [/"/, 'string']
+        ],
+
+        numbers: [
+            [/-?0x([abcdef]|[ABCDEF]|\d)+[lL]?/, 'number.hex'],
+            [/-?(\d*\.)?\d+([eE][+\-]?\d+)?[jJ]?[lL]?/, 'number']
+        ],
+
+        strings: [
+            [/'$/, 'string.escape', '@popall'],
+            [/f'{1,3}/, 'string.escape', '@fStringBody'],
+            [/'/, 'string.escape', '@stringBody'],
+            [/"$/, 'string.escape', '@popall'],
+            [/f"{1,3}/, 'string.escape', '@fDblStringBody'],
+            [/"/, 'string.escape', '@dblStringBody']
+        ],
+        fStringBody: [
+            [/[^\\'\{\}]+$/, 'string', '@popall'],
+            [/[^\\'\{\}]+/, 'string'],
+            [/\{[^\}':!=]+/, 'identifier', '@fStringDetail'],
+            [/\\./, 'string'],
+            [/'/, 'string.escape', '@popall'],
+            [/\\$/, 'string']
+        ],
+        stringBody: [
+            [/[^\\']+$/, 'string', '@popall'],
+            [/[^\\']+/, 'string'],
+            [/\\./, 'string'],
+            [/'/, 'string.escape', '@popall'],
+            [/\\$/, 'string']
+        ],
+        fDblStringBody: [
+            [/[^\\"\{\}]+$/, 'string', '@popall'],
+            [/[^\\"\{\}]+/, 'string'],
+            [/\{[^\}':!=]+/, 'identifier', '@fStringDetail'],
+            [/\\./, 'string'],
+            [/"/, 'string.escape', '@popall'],
+            [/\\$/, 'string']
+        ],
+        dblStringBody: [
+            [/[^\\"]+$/, 'string', '@popall'],
+            [/[^\\"]+/, 'string'],
+            [/\\./, 'string'],
+            [/"/, 'string.escape', '@popall'],
+            [/\\$/, 'string']
+        ],
+        fStringDetail: [
+            [/[:][^}]+/, 'string'],
+            [/[!][ars]/, 'string'],
+            [/=/, 'string'],
+            [/\}/, 'identifier', '@pop']
+        ]
+    }
+});
+
+// Add Python-specific autocompletions
+// Python language support for Monaco Editor
+// ...
+
+// Add Python-specific autocompletions
+monaco.languages.registerCompletionItemProvider('python', {
+    provideCompletionItems: function(model, position) {
+        var suggestions = [
+            {
+                label: 'def',
+                kind: monaco.languages.CompletionItemKind.Keyword,
+                insertText: 'def ${1:function_name}(${2:parameters}):\n\t${3:pass}',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Define a new function'
+            },
+            {
+                label: 'class',
+                kind: monaco.languages.CompletionItemKind.Keyword,
+                insertText: 'class ${1:ClassName}:\n\tdef __init__(self):\n\t\t${2:pass}',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Define a new class'
+            },
+            {
+                label: 'if',
+                kind: monaco.languages.CompletionItemKind.Keyword,
+                insertText: 'if ${1:condition}:\n\t${2:pass}',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'If statement'
+            },
+            {
+                label: 'for',
+                kind: monaco.languages.CompletionItemKind.Keyword,
+                insertText: 'for ${1:item} in ${2:iterable}:\n\t${3:pass}',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'For loop'
+            },
+            {
+                label: 'while',
+                kind: monaco.languages.CompletionItemKind.Keyword,
+                insertText: 'while ${1:condition}:\n\t${2:pass}',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'While loop'
+            },
+            {
+                label: 'try',
+                kind: monaco.languages.CompletionItemKind.Keyword,
+                insertText: 'try:\n\t${1:pass}\nexcept ${2:Exception} as ${3:e}:\n\t${4:pass}',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Try-except block'
+            },
+            {
+                label: 'import',
+                kind: monaco.languages.CompletionItemKind.Keyword,
+                insertText: 'import ${1:module}',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Import a module'
+            },
+            {
+                label: 'from',
+                kind: monaco.languages.CompletionItemKind.Keyword,
+                insertText: 'from ${1:module} import ${2:item}',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Import specific items from a module'
+            },
+            {
+                label: 'with',
+                kind: monaco.languages.CompletionItemKind.Keyword,
+                insertText: 'with ${1:expression} as ${2:variable}:\n\t${3:pass}',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'With statement for context management'
+            },
+            {
+                label: 'print',
+                kind: monaco.languages.CompletionItemKind.Function,
+                insertText: 'print(${1:expression})',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Print to the standard output'
+            },
+            {
+                label: 'len',
+                kind: monaco.languages.CompletionItemKind.Function,
+                insertText: 'len(${1:sequence})',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Return the length (the number of items) of an object'
+            },
+            {
+                label: 'range',
+                kind: monaco.languages.CompletionItemKind.Function,
+                insertText: 'range(${1:start}, ${2:stop}, ${3:step})',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Generate a sequence of numbers'
+            },
+            {
+                label: 'enumerate',
+                kind: monaco.languages.CompletionItemKind.Function,
+                insertText: 'enumerate(${1:iterable}, ${2:start})',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Return an enumerate object'
+            },
+            {
+                label: 'zip',
+                kind: monaco.languages.CompletionItemKind.Function,
+                insertText: 'zip(${1:iterable1}, ${2:iterable2})',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Iterate over several iterables in parallel'
+            },
+            {
+                label: 'isinstance',
+                kind: monaco.languages.CompletionItemKind.Function,
+                insertText: 'isinstance(${1:object}, ${2:classinfo})',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Check if an object is an instance of a class or of a subclass thereof'
+            },
+
+            //string methods
+
+            {
+                label: 'startswith',
+                kind: monaco.languages.CompletionItemKind.Method,
+                insertText: '${1:string}.startswith(${2:prefix})',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Return True if string starts with the specified prefix'
+            },
+            {
+                label: 'endswith',
+                kind: monaco.languages.CompletionItemKind.Method,
+                insertText: '${1:string}.endswith(${2:suffix})',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Return True if string ends with the specified suffix'
+            },
+            {
+                label: 'split',
+                kind: monaco.languages.CompletionItemKind.Method,
+                insertText: '${1:string}.split(${2:separator})',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Return a list of the words in the string, using the specified separator as the delimiter'
+            },
+            {
+                label: 'join',
+                kind: monaco.languages.CompletionItemKind.Method,
+                insertText: '${1:separator}.join(${2:iterable})',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Return a string concatenation of the strings in the iterable'
+            },
+
+            // List methods
+            {
+                label: 'append',
+                kind: monaco.languages.CompletionItemKind.Method,
+                insertText: '${1:list}.append(${2:element})',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Append element to the end of the list'
+            },
+            {
+                label: 'extend',
+                kind: monaco.languages.CompletionItemKind.Method,
+                insertText: '${1:list}.extend(${2:iterable})',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Extend list by appending elements from the iterable'
+            },
+            {
+                label: 'insert',
+                kind: monaco.languages.CompletionItemKind.Method,
+                insertText: '${1:list}.insert(${2:index}, ${3:element})',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Insert element before index'
+            },
+            {
+                label: 'remove',
+                kind: monaco.languages.CompletionItemKind.Method,
+                insertText: '${1:list}.remove(${2:element})',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Remove the first occurrence of element'
+            },
+            {
+                label: 'pop',
+                kind: monaco.languages.CompletionItemKind.Method,
+                insertText: '${1:list}.pop(${2:index})',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Remove and return the item at index (default last)'
+            },
+
+            // Dictionary methods
+            {
+                label: 'get',
+                kind: monaco.languages.CompletionItemKind.Method,
+                insertText: '${1:dict}.get(${2:key}, ${3:default})',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Return the value for key if key is in the dictionary, else default'
+            },
+            {
+                label: 'setdefault',
+                kind: monaco.languages.CompletionItemKind.Method,
+                insertText: '${1:dict}.setdefault(${2:key}, ${3:default})',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Return the value for key if key is in the dictionary, else insert key with a value of default and return default'
+            },
+            {
+                label: 'update',
+                kind: monaco.languages.CompletionItemKind.Method,
+                insertText: '${1:dict}.update(${2:other_dict})',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Update the dictionary with the key-value pairs from other_dict, overwriting existing keys'
+            },
+            {
+                label: 'keys',
+                kind: monaco.languages.CompletionItemKind.Method,
+                insertText: '${1:dict}.keys()',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Return a new view of the dictionary\'s keys'
+            },
+            {
+                label: 'values',
+                kind: monaco.languages.CompletionItemKind.Method,
+                insertText: '${1:dict}.values()',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Return a new view of the dictionary\'s values'
+            },
+            {
+                label: 'items',
+                kind: monaco.languages.CompletionItemKind.Method,
+                insertText: '${1:dict}.items()',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Return a new view of the dictionary\'s items ((key, value) pairs)'
+            },
+
+            // os module
+            {
+                label: 'os.path.join',
+                kind: monaco.languages.CompletionItemKind.Function,
+                insertText: 'os.path.join(${1:path1}, ${2:path2})',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Join one or more path components intelligently'
+            },
+            {
+                label: 'os.path.exists',
+                kind: monaco.languages.CompletionItemKind.Function,
+                insertText: 'os.path.exists(${1:path})',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Return True if path exists'
+            },
+            {
+                label: 'os.path.dirname',
+                kind: monaco.languages.CompletionItemKind.Function,
+                insertText: 'os.path.dirname(${1:path})',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Return the directory component of a pathname'
+            },
+            {
+                label: 'os.path.basename',
+                kind: monaco.languages.CompletionItemKind.Function,
+                insertText: 'os.path.basename(${1:path})',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Return the final component of a pathname'
+            },
+            {
+                label: 'os.listdir',
+                kind: monaco.languages.CompletionItemKind.Function,
+                insertText: 'os.listdir(${1:path})',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Return a list containing the names of the entries in the directory given by path'
+            },
+
+            // sys module
+            {
+                label: 'sys.argv',
+                kind: monaco.languages.CompletionItemKind.Property,
+                insertText: 'sys.argv',
+                documentation: 'The list of command line arguments passed to a Python script'
+            },
+            {
+                label: 'sys.stdin',
+                kind: monaco.languages.CompletionItemKind.Property,
+                insertText: 'sys.stdin',
+                documentation: 'File object used by the interpreter for standard input'
+            },
+            {
+                label: 'sys.stdout',
+                kind: monaco.languages.CompletionItemKind.Property,
+                insertText: 'sys.stdout',
+                documentation: 'File object used by the interpreter for standard output'
+            },
+            {
+                label: 'sys.stderr',
+                kind: monaco.languages.CompletionItemKind.Property,
+                insertText: 'sys.stderr',
+                documentation: 'File object used by the interpreter for standard error output'
+            },
+            {
+                label: 'sys.exit',
+                kind: monaco.languages.CompletionItemKind.Function,
+                insertText: 'sys.exit(${1:status})',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Exit from Python'
+            },
+
+            // re module
+            {
+                label: 're.search',
+                kind: monaco.languages.CompletionItemKind.Function,
+                insertText: 're.search(${1:pattern}, ${2:string})',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Scan through string looking for the first location where the regular expression pattern produces a match'
+            },
+            {
+                label: 're.match',
+                kind: monaco.languages.CompletionItemKind.Function,
+                insertText: 're.match(${1:pattern}, ${2:string})',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Try to apply the pattern at the start of the string, returning a Match object, or None if no match was found'
+            },
+            {
+                label: 're.findall',
+                kind: monaco.languages.CompletionItemKind.Function,
+                insertText: 're.findall(${1:pattern}, ${2:string})',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Return a list of all non-overlapping matches in the string'
+            },
+            {
+                label: 're.sub',
+                kind: monaco.languages.CompletionItemKind.Function,
+                insertText: 're.sub(${1:pattern}, ${2:repl}, ${3:string})',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Return the string obtained by replacing the leftmost non-overlapping occurrences of pattern in string by the replacement repl'
+            },
+
+            // datetime module
+            {
+                label: 'datetime.now',
+                kind: monaco.languages.CompletionItemKind.Function,
+                insertText: 'datetime.now()',
+                documentation: 'Return the current local date and time'
+            },
+            {
+                label: 'datetime.date',
+                kind: monaco.languages.CompletionItemKind.Function,
+                insertText: 'datetime.date(${1:year}, ${2:month}, ${3:day})',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Return a date object with the specified year, month, and day'
+            },
+            {
+                label: 'datetime.time',
+                kind: monaco.languages.CompletionItemKind.Function,
+                insertText: 'datetime.time(${1:hour}, ${2:minute}, ${3:second})',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Return a time object with the specified hour, minute, and second'
+            },
+            {
+                label: 'datetime.timedelta',
+                kind: monaco.languages.CompletionItemKind.Function,
+                insertText: 'datetime.timedelta(${1:days}, ${2:seconds}, ${3:microseconds})',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Return a timedelta object representing a duration'
+            },
+            {
+                label: 'datetime.strftime',
+                kind: monaco.languages.CompletionItemKind.Function,
+                insertText: '${1:date_time}.strftime(${2:format})',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Return a string representing the date and time, controlled by an explicit format string'
+            }
+        ];
+
+        return { suggestions: suggestions };
+    }
+});
+
+
+
+// Provide hover information for Python keywords and functions
+monaco.languages.registerHoverProvider('python', {
+    provideHover: function(model, position) {
+        var word = model.getWordAtPosition(position);
+        if (word) {
+            var keyword = word.word;
+            if (keyword === 'def') {
+                return {
+                    range: new monaco.Range(
+                        position.lineNumber, word.startColumn,
+                        position.lineNumber, word.endColumn
+                    ),
+                    contents: [
+                        { value: 'Keyword: def' },
+                        { value: 'Used to define a function.' }
+                    ]
+                };
+            } else if (keyword === 'class') {
+                return {
+                    range: new monaco.Range(
+                        position.lineNumber, word.startColumn,
+                        position.lineNumber, word.endColumn
+                    ),
+                    contents: [
+                        { value: 'Keyword: class' },
+                        { value: 'Used to define a class.' }
+                    ]
+                };
+ } else if (keyword === 'print') {
+                return {
+                    range: new monaco.Range(
+                        position.lineNumber, word.startColumn,
+                        position.lineNumber, word.endColumn
+                    ),
+                    contents: [
+                        { value: 'Function: print' },
+                        { value: 'Used to print to the standard output.' }
+                    ]
+                };
+            } else if (keyword === 'len') {
+                return {
+                    range: new monaco.Range(
+                        position.lineNumber, word.startColumn,
+                        position.lineNumber, word.endColumn
+                    ),
+                    contents: [
+                        { value: 'Function: len' },
+                        { value: 'Return the length (the number of items) of an object.' }
+                    ]
+                };
+            } else if (keyword === 'range') {
+                return {
+                    range: new monaco.Range(
+                        position.lineNumber, word.startColumn,
+                        position.lineNumber, word.endColumn
+                    ),
+                    contents: [
+                        { value: 'Function: range' },
+                        { value: 'Generate a sequence of numbers.' }
+                    ]
+                };
+            } else if (keyword === 'os') {
+                return {
+                    range: new monaco.Range(
+                        position.lineNumber, word.startColumn,
+                        position.lineNumber, word.endColumn
+                    ),
+                    contents: [
+                        { value: 'Module: os' },
+                        { value: 'Provides a portable way of using operating system-dependent functionality.' }
+                    ]
+                };
+            } else if (keyword === 'sys') {
+                return {
+                    range: new monaco.Range(
+                        position.lineNumber, word.startColumn,
+                        position.lineNumber, word.endColumn
+                    ),
+                    contents: [
+                        { value: 'Module: sys' },
+                        { value: 'Provides access to some variables and functions used or maintained by the interpreter.' }
+                    ]
+                };
+            } else if (keyword === 're') {
+                return {
+                    range: new monaco.Range(
+                        position.lineNumber, word.startColumn,
+                        position.lineNumber, word.endColumn
+                    ),
+                    contents: [
+                        { value: 'Module: re' },
+                        { value: 'Provides support for regular expressions.' }
+                    ]
+                };
+            } else if (keyword === 'datetime') {
+                return {
+                    range: new monaco.Range(
+                        position.lineNumber, word.startColumn,
+                        position.lineNumber, word.endColumn
+                    ),
+                    contents: [
+                        { value: 'Module: datetime' },
+                        { value: 'Provides classes for manipulating dates and times.' }
+                    ]
+                };
+            }
+            // Add more hover information for other keywords, functions, and modules
+        }
+        return null;
+    }
+});
