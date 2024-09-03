@@ -1,0 +1,102 @@
+class EditorPaneManager:
+    def __init__(self):
+        self.editor_pane = None
+        self.original_ratio = None
+        self.pane_name = "TDCode"
+    def showEditorPane(self):
+        if self.editor_pane is None:
+            self.createEditorPane()
+        else:
+            self.restoreEditorPane()
+
+    def createEditorPane(self):
+        create_pane_op = op('createPane')
+        if create_pane_op is None:
+            print("Error: Could not find the createPane operator.")
+            return
+
+        new_pane = mod(create_pane_op).createEditorPane()
+        if new_pane is None:
+            print("Error: Failed to create a new editor pane.")
+            return
+
+        self.editor_pane = new_pane
+        self.original_ratio = new_pane.ratio
+        self.editor_pane.name = self.pane_name
+        print(f"New editor pane created with ratio: {new_pane.ratio}")
+
+    def restoreEditorPane(self):
+        if self.editor_pane:
+            try:
+                self.editor_pane.ratio = self.original_ratio
+                print(f"Editor pane restored with ratio: {self.editor_pane.ratio}")
+            except:
+                print("Failed to restore editor pane. Creating a new one.")
+                self.createEditorPane()
+        else:
+            self.createEditorPane()
+
+    def hideEditorPane(self):
+        if self.editor_pane:
+            try:
+                self.editor_pane.ratio = 0.0001  # Set to a very small value instead of 0
+                print(f"Editor pane hidden (ratio set to {self.editor_pane.ratio})")
+            except:
+                print("Failed to hide editor pane. It may no longer exist.")
+                self.editor_pane = None
+        else:
+            print("No editor pane to hide")
+
+    def closeEditorPane(self):
+        if self.editor_pane:
+            try:
+                self.editor_pane.close()
+                print("Editor pane closed")
+            except:
+                print("Failed to close editor pane. It may no longer exist.")
+            finally:
+                self.editor_pane = None
+        else:
+            print("No editor pane to close")
+
+editor_manager = EditorPaneManager()
+
+def onValueChange(par, prev):
+    if par.name == 'Datsmenu':
+        selected_dat_path = par.eval()
+        if selected_dat_path:
+            selected_dat = op(selected_dat_path)
+            if selected_dat and selected_dat.isDAT:
+                content = selected_dat.text
+                mod(op('webserver1_callbacks')).SendContentToEditor(content, selected_dat_path)
+            else:
+                print("Selected operator is not a DAT")
+        else:
+            print("No DAT selected")
+    
+    elif par.name == 'Showeditor':
+        if par.eval():
+            editor_manager.showEditorPane()
+        else:
+            editor_manager.hideEditorPane()
+
+def GetDatsList():
+    datPaths = parent().par.Dats.menuNames
+    datRelPaths = parent().par.Dats.menuLabels
+    return [{'path': datPaths[i], 'name': datRelPaths[i]} for i in range(len(datPaths))]
+
+# These functions can remain empty if not needed
+def onPulse(par):
+    return
+
+def onExpressionChange(par, val, prev):
+    return
+
+def onExportChange(par, val, prev):
+    return
+
+def onEnableChange(par, val, prev):
+    return
+
+def onModeChange(par, val, prev):
+    return
