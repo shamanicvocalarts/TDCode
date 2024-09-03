@@ -1,0 +1,8 @@
+def offToOn(panelValue):
+	ext.SubWidgetExt.onPanelEvent('offToOn', panelValue)
+
+def onToOff(panelValue):
+	ext.SubWidgetExt.onPanelEvent('onToOff', panelValue)
+
+def valueChange(panelValue):
+	ext.SubWidgetExt.onPanelEvent('valueChange', panelValue)
