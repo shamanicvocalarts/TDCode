@@ -1,0 +1,6 @@
+def valueChange(par, val, prev):
+	ext.SubWidgetExt.onParSettingsChange(par, prev)
+
+def onPulse(par):
+	ext.SubWidgetExt.onParSettingsPulse(par)
+
