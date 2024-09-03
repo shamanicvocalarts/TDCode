@@ -1,0 +1,354 @@
+# me - this DAT.
+# webServerDAT - the connected Web Server DAT
+# request - A dictionary of the request fields.
+# response - A dictionary defining the response, to be filled in during the request method.
+import json
+
+
+    # Handle file_content without authentication
+def onHTTPRequest(webServerDAT, request, response):
+    uri = request['uri']
+    method = request['method']
+
+    if uri == '/api/file_content':
+        if method == 'GET':
+            op_path = request['pars'].get('path')
+            if op_path:
+                try:
+                    print(f"GET request for operator path: {op_path}")  # Debug print
+                    content = get_op_content(op_path)
+                    response['statusCode'] = 200
+                    response['statusReason'] = 'OK'
+                    response['data'] = content
+                    response['content-type'] = 'text/plain'
+                except Exception as e:
+                    response['statusCode'] = 404
+                    response['statusReason'] = 'Not Found'
+                    response['data'] = str(e)
+                    print(f"Error in GET /api/file_content: {str(e)}")
+            else:
+                response['statusCode'] = 400
+                response['statusReason'] = 'Bad Request'
+                response['data'] = 'Missing path parameter'
+        elif method == 'POST':
+            try:
+                content = json.loads(request['data'])
+                op_path = content.get('path')
+                file_content = content.get('content')
+                if op_path and file_content is not None:
+                    print(f"POST request to update operator at path: {op_path}")  # Debug print
+                    update_op_content(op_path, file_content)
+                    response['statusCode'] = 200
+                    response['statusReason'] = 'OK'
+                    response['data'] = 'File updated successfully'
+                else:
+                    response['statusCode'] = 400
+                    response['statusReason'] = 'Bad Request'
+                    response['data'] = 'Missing path or content in request'
+            except Exception as e:
+                response['statusCode'] = 500
+                response['statusReason'] = 'Internal Server Error'
+                response['data'] = f'Error updating file: {str(e)}'
+                print(f"Error in POST /api/file_content: {str(e)}")
+        return response
+
+    if uri == '/api/dats':
+        if method == 'GET':
+            try:
+                dats_op = op('dats')
+                if not dats_op:
+                    raise Exception("'dats' operator not found")
+                
+                dats_data = []
+                for row in dats_op.rows()[1:]:  # Skip header row
+                    if len(row) >= 4:
+                        name, path, rel_path, tags = [cell_to_str(cell) for cell in row[:4]]
+                        dats_data.append({
+                            'name': name,
+                            'path': path,
+                            'relPath': rel_path,
+                            'tags': tags
+                        })
+                    else:
+                        print(f"Warning: Skipping row with insufficient data: {row}")
+                
+                response['statusCode'] = 200
+                response['statusReason'] = 'OK'
+                response['data'] = json.dumps(dats_data)
+                response['content-type'] = 'application/json'
+            except Exception as e:
+                print(f"Error in /api/dats: {str(e)}")
+                response['statusCode'] = 500
+                response['statusReason'] = 'Internal Server Error'
+                response['data'] = f'Error fetching dats: {str(e)}'
+        else:
+            response['statusCode'] = 405
+            response['statusReason'] = 'Method Not Allowed'
+            response['data'] = 'Only GET method is allowed for this endpoint'
+        return response
+
+    if uri == '/api/absolute_path':
+        if method == 'GET':
+            path = request['pars'].get('path')
+            if path:
+                try:
+                    absolute_path = get_absolute_path(path)
+                    response['statusCode'] = 200
+                    response['statusReason'] = 'OK'
+                    response['data'] = absolute_path
+                    response['content-type'] = 'text/plain'
+                except Exception as e:
+                    response['statusCode'] = 404
+                    response['statusReason'] = 'Not Found'
+                    response['data'] = str(e)
+            else:
+                response['statusCode'] = 400
+                response['statusReason'] = 'Bad Request'
+                response['data'] = 'Missing path parameter'
+        return response
+
+    if uri == '/api/git_ignore':
+        if method == 'POST':
+            try:
+                content = json.loads(request['data'])
+                op_path = content.get('path')
+                should_ignore = content.get('ignore')
+                print(f"Received git-ignore request for path: {op_path}")  # Debug print
+                if op_path is not None and should_ignore is not None:
+                    target_op = op(op_path)
+                    if target_op:
+                        print(f"Found operator: {target_op}")  # Debug print
+                        current_tags = set(target_op.tags)
+                        print(f"Current tags: {current_tags}")  # Debug print
+                        if should_ignore:
+                            current_tags.add('git-ignore')
+                        else:
+                            current_tags.discard('git-ignore')
+                        target_op.tags = list(current_tags)
+                        print(f"Updated tags: {target_op.tags}")  # Debug print
+                        
+                        # Update the dats table
+                        dats_op = op('dats')
+                        for row in dats_op.rows()[1:]:  # Skip header row
+                            if row[1].val == op_path:  # Assuming the path is in the second column
+                                row[3] = ' '.join(target_op.tags)
+                                break
+                        
+                        response['statusCode'] = 200
+                        response['statusReason'] = 'OK'
+                        response['data'] = f'Updated git-ignore status for {op_path}'
+                    else:
+                        print(f"Operator not found: {op_path}")  # Debug print
+                        response['statusCode'] = 404
+                        response['statusReason'] = 'Not Found'
+                        response['data'] = f'Operator not found: {op_path}'
+                else:
+                    response['statusCode'] = 400
+                    response['statusReason'] = 'Bad Request'
+                    response['data'] = 'Missing path or ignore status'
+            except Exception as e:
+                print(f"Error in git-ignore: {str(e)}")  # Debug print
+                response['statusCode'] = 500
+                response['statusReason'] = 'Internal Server Error'
+                response['data'] = f'Error updating git-ignore status: {str(e)}'
+        return response
+
+    if uri == '/api/is_git_ignored':
+        if method == 'GET':
+            op_path = request['pars'].get('path')
+            if op_path:
+                is_ignored = is_git_ignored(op_path)
+                response['statusCode'] = 200
+                response['statusReason'] = 'OK'
+                response['data'] = str(is_ignored).lower()
+            else:
+                response['statusCode'] = 400
+                response['statusReason'] = 'Bad Request'
+                response['data'] = 'Missing path parameter'
+        return response
+        
+
+    # Check if the request is for a route that requires authentication
+    if uri.startswith('/api/'):
+        token = me.fetch('github_access_token', None)
+        
+        if token:
+            response['statusCode'] = 200
+            response['statusReason'] = 'OK'
+            
+            # Handle different API routes
+            if uri == '/api/current_repo':
+                if method == 'GET':
+                    response['data'] = me.fetch('current_repo', '')
+                elif method == 'POST':
+                    me.store('current_repo', request['data'])
+                    response['data'] = 'Current repo updated'
+            elif uri == '/api/current_owner':
+                if method == 'GET':
+                    response['data'] = me.fetch('current_owner', '')
+                elif method == 'POST':
+                    me.store('current_owner', request['data'])
+                    response['data'] = 'Current owner updated'
+            elif uri == '/api/staged_files':
+                if method == 'GET':
+                    response['data'] = me.fetch('staged_files', '[]')
+                elif method == 'POST':
+                    me.store('staged_files', request['data'])
+                    response['data'] = 'Staged files updated'
+            elif uri == '/api/add_staged_file':
+                if method == 'POST':
+                    file_path = request['data']
+                    staged_files = json.loads(me.fetch('staged_files', '[]'))
+                    if file_path not in staged_files:
+                        staged_files.append(file_path)
+                        me.store('staged_files', json.dumps(staged_files))
+                        response['data'] = f'Added {file_path} to staged files'
+                    else:
+                        response['data'] = f'{file_path} is already staged'
+            elif uri == '/api/remove_staged_file':
+                if method == 'POST':
+                    file_path = request['data']
+                    staged_files = json.loads(me.fetch('staged_files', '[]'))
+                    if file_path in staged_files:
+                        staged_files.remove(file_path)
+                        me.store('staged_files', json.dumps(staged_files))
+                        response['data'] = f'Removed {file_path} from staged files'
+                    else:
+                        response['data'] = f'{file_path} is not in staged files'
+            elif uri == '/api/clear_staged_files':
+                if method == 'POST':
+                    me.store('staged_files', '[]')
+                    response['data'] = 'Cleared all staged files'
+            else:
+                response['statusCode'] = 404
+                response['statusReason'] = 'Not Found'
+                response['data'] = 'API endpoint not found'
+        else:
+            response['statusCode'] = 401
+            response['statusReason'] = 'Unauthorized'
+            response['data'] = 'OAuth token not found. Please authenticate first.'
+        
+        response['content-type'] = 'application/json'
+        return response
+    
+    # Handle other routes normally using the routes table
+    routes_table = op('webserver_routes')
+    
+    for row in routes_table.rows()[1:]:  # Skip header row
+        route_uri, operator_name, content_type = row
+        
+        if route_uri == uri:
+            response['statusCode'] = 200
+            response['statusReason'] = 'OK'
+            response['data'] = op(operator_name).text
+            response['content-type'] = content_type or 'text/html'
+            return response
+    
+    # If no match is found, return 404
+    response['statusCode'] = 404
+    response['statusReason'] = 'Not Found'
+    response['data'] = '404 - Not Found'
+    return response
+
+
+def get_absolute_path(op_path):
+    """
+    Convert a potentially relative path to an absolute path.
+    """
+    try:
+        # Try to evaluate the path as an operator
+        target_op = op(op_path)
+        return target_op.path
+    except:
+        # If it's not a valid operator path, return the original path
+        return op_path
+
+def get_op_content(op_path):
+    """
+    Retrieve the content of an operator given its path.
+    """
+    try:
+        if is_git_ignored(op_path):
+            raise Exception(f"Operator at path {op_path} is git-ignored")
+        
+        target_op = op(op_path)
+        if target_op is None:
+            raise Exception(f"Operator not found at path: {op_path}")
+        
+        if hasattr(target_op, 'text'):
+            return target_op.text
+        else:
+            raise AttributeError("Operator does not have a 'text' attribute or parameter")
+    except Exception as e:
+        raise Exception(f"Error retrieving content for {op_path}: {str(e)}")
+
+
+
+def update_op_content(op_path, content):
+    """
+    Update the content of an operator given its path.
+    """
+    if is_git_ignored(op_path):
+        raise Exception(f"Operator at path {op_path} is git-ignored")
+    try:
+        # Ensure the path starts with a forward slash
+        if not op_path.startswith('/'):
+            op_path = '/' + op_path
+        
+        print(f"Attempting to access operator at path: {op_path}")  # Debug print
+        
+        # Check if the operator exists
+        target_op = op(op_path)
+        if target_op is None:
+            raise Exception(f"Operator not found at path: {op_path}")
+        
+        # Update the text content
+        target_op.text = content
+        print(f"Successfully updated operator at path: {op_path}")  # Debug print
+    except Exception as e:
+        raise Exception(f"Error updating content for {op_path}: {str(e)}")
+
+
+def is_git_ignored(op_path):
+    dats_op = op('dats')
+    for row in dats_op.rows()[1:]:  # Skip header row
+        if row[1].val == op_path:  # Assuming the path is in the second column
+            operator = op(op_path)  # Get the operator directly using the path
+            if operator is not None:
+                return "git-ignore" in [tag.lower() for tag in operator.tags]  # Check operator's tags
+            else:
+                return False  # If the operator doesn't exist, return False
+    return False
+
+
+
+def cell_to_str(cell):
+    return str(cell.val) if hasattr(cell, 'val') else str(cell)
+
+
+def onWebSocketOpen(webServerDAT, client, uri):
+    return
+
+def onWebSocketClose(webServerDAT, client):
+    return
+
+def onWebSocketReceiveText(webServerDAT, client, data):
+    webServerDAT.webSocketSendText(client, data)
+    return
+
+def onWebSocketReceiveBinary(webServerDAT, client, data):
+    webServerDAT.webSocketSendBinary(client, data)
+    return
+
+def onWebSocketReceivePing(webServerDAT, client, data):
+    webServerDAT.webSocketSendPong(client, data=data)
+    return
+
+def onWebSocketReceivePong(webServerDAT, client, data):
+    return
+
+def onServerStart(webServerDAT):
+    return
+
+def onServerStop(webServerDAT):
+    return
