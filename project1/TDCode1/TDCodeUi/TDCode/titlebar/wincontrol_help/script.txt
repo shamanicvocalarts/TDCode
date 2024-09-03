@@ -1,0 +1,1 @@
+viewfile "`tabr("$gadget/local/define","helplink",1)`"
