@@ -1,0 +1,2 @@
+set panetype = `tabr("data",tab("selected",0,0),2)`
+set type = `execute("$panetype")`
