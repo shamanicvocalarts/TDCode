@@ -1,0 +1,6 @@
+if (`tabr("$gadget/local/define","window",1)` != 1)
+	opparm dropdown paneldisplay (0)
+	tabcell $gadget/counter rc 0 0 0
+	controlpanel -s $gadget/button state 0
+	controlpanel -s $gadget/dropdown/list/list celloverid -1
+endif
