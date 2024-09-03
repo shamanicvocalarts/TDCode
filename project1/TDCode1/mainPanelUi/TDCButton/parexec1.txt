@@ -1,0 +1,17 @@
+# par - the Par object that has changed
+# prev - the previous value
+
+def onValueChange(par, prev):
+    if not parent().panel.select:
+        parent().panel.state = par.eval()
+        
+        if par.eval() == 0:
+            # Set the opacity and brightness of "level1" through its parameters
+            op("level1").par.opacity = 0.701
+            op("level1").par.brightness2 = 0.701
+        elif par.eval() == 1:
+            # Set the opacity and brightness of "level1" to full
+            op("level1").par.opacity = 1
+            op("level1").par.brightness2 = 1
+
+    return
