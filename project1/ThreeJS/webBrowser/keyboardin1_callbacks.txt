@@ -1,0 +1,23 @@
+# me - this DAT
+# 
+# dat - the DAT that received the key event
+# key - the name of the key attached to the event
+# character - the ASCII value of the pressed key as a string
+# alt - True if the alt modifier is pressed
+# ctrl - True if the ctrl modifier is pressed
+# shift - True if the shift modifier is pressed
+# state - True if the event is a key press event
+# time - the time when the event came in milliseconds
+
+def onKey(dat, key, character, alt, lAlt, rAlt, ctrl, lCtrl, rCtrl, shift, lShift, rShift, state, time):
+	if state:
+		if key.isdigit():
+			op('webrender1').sendKey(ord(key), alt=alt, ctrl=ctrl, shift=shift)
+		else:
+			op('webrender1').sendKey(key, alt=alt, ctrl=ctrl, shift=shift)
+
+# shortcutName is the name of the shortcut
+
+def onShortcut(dat, shortcutName, time):
+	return;
+	
