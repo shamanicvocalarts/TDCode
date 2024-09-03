@@ -1,0 +1,7 @@
+def onValueChange(par, prev):
+	ext.VirtualFileExt.onParValueChange(par, prev)
+	return
+
+def onPulse(par):
+	ext.VirtualFileExt.onParPulse(par)
+	return
