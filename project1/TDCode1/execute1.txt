@@ -1,0 +1,78 @@
+# me - this DAT
+# 
+# frame - the current frame
+# state - True if the timeline is paused
+# 
+# Make sure the corresponding toggle is enabled in the Execute DAT.
+
+def onStart():
+	op("createUI").run(delayFrames = 30)
+	
+	return
+
+def onCreate():
+	op("createUI").run()
+	return 
+
+def onExit():
+	return
+
+def onFrameStart(frame):
+	return
+
+def onFrameEnd(frame):
+	return
+
+def onPlayStateChange(state):
+	return
+
+def onDeviceChange():
+	return
+
+def onProjectPreSave():
+    print("Starting onProjectPreSave")
+    
+    def process_ui(target_path, source_path):
+        target = op(target_path)
+        source = op(source_path)
+        
+        if not target or not source:
+            print(f"Error: Target {target_path} or source {source_path} not found.")
+            return
+        
+        print(f"Processing {target.path} with {source.path}")
+        
+        print(f"Deleting top-level operators in {source.name}")
+        for child in source.children:
+            print(f"Deleting {child.name}")
+            child.destroy()
+        
+        print("Finding top-level tagged operators")
+        tagged_ops = [op for op in target.children if 'TDC' in op.tags]
+        print(f"Found {len(tagged_ops)} tagged operators")
+        
+        for i, tagged_op in enumerate(tagged_ops):
+            print(f"Copying {tagged_op.name}")
+            try:
+                new_op = source.copy(tagged_op)
+                new_op.nodeX = 400 + i * 200
+                new_op.nodeY = -400
+                print(f"Successfully copied {tagged_op.name}")
+            except td.tdError as e:
+                
+                continue
+    
+    # Process bookmark_bar
+    process_ui('/ui/dialogs/bookmark_bar', 'mainPanelUi')
+    
+    # Process panebar
+    process_ui('/ui/panes/panebar', 'TDCodeUi')
+    
+    print("Finished onProjectPreSave")
+    return
+
+
+def onProjectPostSave():
+	return
+
+	
