@@ -1,0 +1,63 @@
+//websocket.js
+
+import { log } from './utils.js';
+import { handleWebSocketMessage } from './editor.js';
+
+let ws;
+
+function setupWebSocket() {
+    ws = new WebSocket('ws://' + window.location.host);
+
+    ws.onopen = function(event) {
+        log("WebSocket connection opened");
+    };
+
+    ws.onmessage = function(event) {
+        try {
+            var data = JSON.parse(event.data);
+            handleWebSocketMessage(data);
+        } catch (error) {
+            log("Error processing WebSocket message: " + error);
+        }
+    };
+
+    ws.onerror = function(error) {
+        log("WebSocket error: " + error);
+    };
+
+    ws.onclose = function(event) {
+        log("WebSocket connection closed");
+    };
+}
+
+function sendWebSocketMessage(message) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(message));
+    } else {
+        console.error('WebSocket is not connected');
+    }
+}
+
+function sendContentToServer(content, path) {
+    sendWebSocketMessage({
+        action: 'contentChanged',
+        content: content,
+        path: path
+    });
+}
+
+function sendPendingChanges(pendingChanges) {
+    for (let path in pendingChanges) {
+        sendContentToServer(pendingChanges[path], path);
+    }
+}
+
+function sendOpParameters(parameters, path) {
+    sendWebSocketMessage({
+        action: 'updateOpParameters',
+        parameters: JSON.parse(parameters),
+        path: path
+    });
+}
+
+export { setupWebSocket, sendWebSocketMessage, sendContentToServer, sendPendingChanges, sendOpParameters }
