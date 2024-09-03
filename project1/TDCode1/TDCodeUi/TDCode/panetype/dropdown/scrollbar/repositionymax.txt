@@ -1,0 +1,3 @@
+if(`par("knob/panely")` > $arg2)
+	opparm knob panely ($arg2)
+endif
