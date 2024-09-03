@@ -1,0 +1,3 @@
+def onOPdelete():
+	ext.SubWidgetExt.PanelExecPar.val = ''
+	ext.SubWidgetExt.PanelExecPar.enable = False	
