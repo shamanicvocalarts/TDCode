@@ -1,0 +1,21 @@
+# me - this DAT
+# scriptOp - the OP which is cooking
+#
+# press 'Setup Parameters' in the OP to call this function to re-create the parameters.
+def onSetupParameters(scriptOp):
+	page = scriptOp.appendCustomPage('Custom')
+	p = page.appendPython('Dictlist', label='Dict List')
+	p = page.appendStr('Keyorder', label='Key Order')
+	return
+
+# called whenever custom pulse parameter is pushed
+def onPulse(par):
+	return
+
+def onCook(scriptOp):
+	scriptOp.clear()
+	keys = scriptOp.par.Keyorder.eval().split()
+	scriptOp.appendRow(keys)
+	for virtualFile in scriptOp.par.Dictlist.eval():
+		scriptOp.appendRow([getattr(virtualFile, k) for k in keys])
+	return
