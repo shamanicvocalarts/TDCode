@@ -1,0 +1,7 @@
+updater = op('parexec_comp').module.updater
+
+def onValueChange(par, prev):
+	updater().onUpdateSystemParValueChange(par, prev)
+
+def onPulse(par):
+	updater().onUpdateSystemParPulse(par)	
