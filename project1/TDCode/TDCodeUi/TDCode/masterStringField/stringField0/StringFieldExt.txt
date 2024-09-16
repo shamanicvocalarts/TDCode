@@ -1,0 +1,16 @@
+SubWidgetExt = mod.SubWidgetExt.SubWidgetExt
+TDF = op.TDModules.mod.TDFunctions
+
+class StringFieldExt(SubWidgetExt):
+	"""
+	StringFieldExt description
+	"""
+	def __init__(self, ownerComp):
+		# The component to which this extension is attached
+		self.parPrefix = 'Stringfield'
+		SubWidgetExt.__init__(self, ownerComp)
+
+	def makePanelExecute(self):
+		oppath = parent.Widget.relativePath(self.ownerComp)[2:]
+		SubWidgetExt.makePanelExecute(self, self.getDockExpressionToOwner()
+									  + ".op('field')")
