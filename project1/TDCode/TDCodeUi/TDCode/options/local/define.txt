@@ -1,0 +1,16 @@
+label	Drop
+displaylabel	0
+font_size	9
+symbol_size	12
+labelwidth	50
+contextmenu	menu2
+listitems	9
+dropdowndirh	left
+dropdowndirv	down
+dropdownwidth	200
+window	0
+fonttype	symbol
+symbol	down
+type	toggleup
+sizetoparent	1
+columnwidth	-1 80
