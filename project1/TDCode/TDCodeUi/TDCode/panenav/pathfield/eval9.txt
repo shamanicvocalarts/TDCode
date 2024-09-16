@@ -1,0 +1,13 @@
+type		field			
+fieldtype		string			
+textlabel	labels				
+font		Verdana			
+fontsize		9			
+textjustify		center	center		
+wordwrap		0			
+margin		2	2		
+fontcolor		0.63	0.669999	0.75	1
+bgcolor		0.19	0.21	0.25	0.8
+borderacolor		0.41625	0.424688	0.45	1
+width	width				
+textoffset			1.5		
