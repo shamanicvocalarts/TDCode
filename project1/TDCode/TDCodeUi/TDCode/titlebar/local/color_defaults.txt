@@ -1,0 +1,5 @@
+gadget_bg_off	titlebar_off
+gadget_bg_on	titlebar_on
+gadget_bordera	titlebar_bordera
+gadget_borderb	titlebar_bordera
+text_off	titlebar_text_off
