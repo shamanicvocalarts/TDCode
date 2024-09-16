@@ -1,0 +1,6 @@
+gadget	`opfullpath("../..")`
+colorexp	`ifs(opexists("$controlpanel/colors/exp"),"$controlpanel/colors/exp","/ui/lib/TUIK2/colors/exp")`
+color	`ifs(opexists(oprootf("../..")+"/local/color/out"),oprootf("../..")+"/local/color","/ui/lib/TUIK2/colors/color")`
+TOUCHVERSION	088
+TOUCHBUILD	61220
+TOUCHTIME	Thu Aug  4 16:39:47 2016
