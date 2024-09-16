@@ -1,0 +1,2 @@
+parameter	path	value
+panelw	..	par(opparent(".",0)+"/panelw")-par(opparent(".",0)+"/panelmarginl")-par(opparent(".",0)+"/panelmarginr")
