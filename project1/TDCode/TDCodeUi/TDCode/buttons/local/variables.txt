@@ -1,0 +1,6 @@
+gadget	/project1/TDCode/TDCodeUi/TDCode/buttons
+colorexp	/ui/lib/TUIK2/colors/exp
+color	/ui/lib/TUIK2/colors/color
+TOUCHVERSION	088
+TOUCHBUILD	1140
+TOUCHTIME	Thu Jan  5 14:13:26 2012
