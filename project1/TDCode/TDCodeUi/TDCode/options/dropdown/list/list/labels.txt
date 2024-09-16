@@ -1,0 +1,16 @@
+TDCode
+Split Left/Right
+Split Top/Bottom
+Duplicate Pane
+Floating Copy
+Open in Browser
+Maximize
+Close
+
+Alt+[
+Alt+]
+
+
+
+Alt+\`
+Alt+z
