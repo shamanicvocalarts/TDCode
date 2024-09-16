@@ -1,0 +1,8 @@
+$pane		
+Split Left/Right	Alt+[	desk -h $pane 0.5
+Split Top/Bottom	Alt+]	desk -v $pane 0.5
+Duplicate Pane		desk -d $pane
+Floating Copy		desk -o $pane
+Open in Browser		
+`ifs(chop("maxmin/out1/bstate")==1,"Minimize","Maximize")`	Alt+\`	click $controlpanel/maxmin/button
+Close	Alt+z	desk -c $pane
