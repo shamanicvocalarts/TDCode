@@ -1,0 +1,17 @@
+
+set action = `tabr("data",tab("selected",0,0),2)`
+
+set actionRes = `execute("$action")`
+
+if `strmatch("desk *","$action")`
+
+	set current = `execute("cc")`
+	cc /ui/panes/panebar
+	set panes = `execute("lc -d *")`
+	foreach pane($panes)
+		opcook -F -r $pane/local/eval5
+	end
+	cc $current
+	
+
+endif
