@@ -1,0 +1,6 @@
+args itemtable x y source
+opparm $controlpanel/context/menuitems dat("$itemtable")
+opparm $controlpanel/context panelx ($x) panely ($y'-par("panelh")')
+opparm $controlpanel/context/menu paneldisplay (1)
+controlpanel -s $controlpanel/context focusselect 1
+tabcell $controlpanel/context/selected rc 0 0 "$source"
