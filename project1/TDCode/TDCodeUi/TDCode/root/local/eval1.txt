@@ -1,0 +1,11 @@
+label	Button
+displaylabel	0
+labelwidth	50
+font_size	10
+symbol_size	12
+bold	0
+type	momentary
+channelname	bstate
+sizetoparent	1
+fonttype	symbol
+buttonsymbol	home
