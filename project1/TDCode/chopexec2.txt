@@ -1,0 +1,23 @@
+def onValueChange(channel, sampleIndex, val, prev):
+    if channel.name == 'run':
+        if val == 1:
+            selected_dat = op(op.TDC.par.Datsmenu.eval())
+            if selected_dat and selected_dat.isDAT:
+                # Run the DAT
+                selected_dat.run()
+    elif channel.name == 'pars':
+        if val == 1:
+            selected_op = op(op.TDC.par.Opsmenu.eval())
+            if selected_op:
+                selected_op.openParameters()
+    elif channel.name == 'view':
+        if val == 1:
+            selected_op = op(op.TDC.par.Opsmenu.eval())
+            if selected_op:
+                selected_op.openViewer(unique=False, borders=True)
+
+def onOffToOn(channel, sampleIndex, val, prev):
+    onValueChange(channel, sampleIndex, val, prev)
+
+def onOnToOff(channel, sampleIndex, val, prev):
+    pass  # We don't need to do anything when the value goes back to 0
