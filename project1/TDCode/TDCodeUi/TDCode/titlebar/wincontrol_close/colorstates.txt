@@ -1,0 +1,5 @@
+on	$colorexp/titlebar_on
+onroll	$colorexp/titlebar_onroll
+off	$colorexp/titlebar_off
+offroll	$colorexp/titlebar_offroll
+disable	$colorexp/titlebar_disable
