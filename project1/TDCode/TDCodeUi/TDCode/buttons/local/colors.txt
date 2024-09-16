@@ -1,0 +1,3 @@
+gadget_bg	gadget_bg
+gadget_bordera	gadget_bordera
+gadget_borderb	gadget_borderb
