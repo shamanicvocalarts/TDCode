@@ -1,0 +1,7 @@
+No Link	desk -k 0 TDCode
+1	desk -k 1 TDCode
+2	desk -k 2 TDCode
+3	desk -k 3 TDCode
+Inside 1	desk -k -1 TDCode
+Inside 2	desk -k -2 TDCode
+Inside 3	desk -k -3 TDCode
