@@ -1,0 +1,3 @@
+if (`tabr("$gadget/local/define","window",1)` != 1)
+	opparm dropdown paneldisplay (0)
+endif
