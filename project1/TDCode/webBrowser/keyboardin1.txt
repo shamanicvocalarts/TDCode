@@ -1,0 +1,10 @@
+key	character	alt	ctrl	shift	state	time	cmd
+enter		0	0	0	0	967490107	0
+backspace		0	0	0	1	967490496	0
+backspace		0	0	0	0	967490640	0
+ctrl		0	1	0	1	967490787	0
+lctrl		0	1	0	1	967490787	0
+v	v	0	1	0	1	967490979	0
+v	v	0	1	0	0	967491146	0
+ctrl		0	0	0	0	967491197	0
+lctrl		0	0	0	0	967491197	0
