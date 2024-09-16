@@ -1,0 +1,1 @@
+Close	7	click /panebar/maxmin/button	5
