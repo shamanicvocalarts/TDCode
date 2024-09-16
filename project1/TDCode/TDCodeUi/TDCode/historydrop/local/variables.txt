@@ -1,0 +1,6 @@
+gadget	/project1/TDCode/TDCodeUi/TDCode/historydrop
+colorexp	/ui/lib/TUIK2/colors/exp
+color	/ui/lib/TUIK2/colors/color
+TOUCHVERSION	088
+TOUCHBUILD	4360
+TOUCHTIME	Tue Sep 25 17:34:50 2012
