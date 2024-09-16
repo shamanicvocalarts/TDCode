@@ -1,0 +1,6 @@
+if `par("list/list/panelh")-par("scrollbar/panelh")` != 0
+	set pos = `fit($arg1*20,par("list/list/panelh")-par("scrollbar/panelh"),0,0,par("scrollbar/knob/repositionymax"))`
+	set pos = `clamp($pos,0,99999)`
+	opparm scrollbar/knob panely ($pos)
+	tabcell scrollpos_old rc 0 0 `clamp(round($arg1*par("list/list/panelh")/20),0,tabnr("in1"))`
+endif
