@@ -1,0 +1,8 @@
+Network Editor	Alt+1	desk -t neteditor TDCode
+Panel	Alt+2	desk -t panel TDCode
+Geometry Viewer	Alt+3	desk -t geoviewer TDCode
+TOP Viewer	Alt+4	desk -t topviewer TDCode
+CHOP Viewer	Alt+5	desk -t chopviewer TDCode
+Animation Editor	Alt+6	desk -t keyframer TDCode
+Parameters	Alt+7	desk -t parameters TDCode
+Textport and DATs	Alt+9	desk -t textport TDCode
