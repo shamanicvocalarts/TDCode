@@ -1,0 +1,3 @@
+default	row_disable
+rollover	row_disable
+select	row_disable
