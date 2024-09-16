@@ -1,0 +1,3 @@
+set panel = `tab("../panenav/out1",0,0)`
+#echo panel $panel
+view -o $panel
