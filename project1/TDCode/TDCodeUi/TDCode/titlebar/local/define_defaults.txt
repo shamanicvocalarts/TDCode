@@ -1,0 +1,4 @@
+dialogname	Controlpanel
+helplink	http://www.derivative.ca/wiki/index.php
+sizetoparent	0
+font_size	8
