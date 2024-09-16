@@ -1,0 +1,10 @@
+label	Done
+displaylabel	0
+labelwidth	50
+fontsize	main
+bold	0
+type	momentary
+channelname	bstate
+buttonlabel	OK
+sizetoparent	1
+font_size	9
