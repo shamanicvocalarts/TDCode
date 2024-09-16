@@ -1,0 +1,9 @@
+label	Name
+font_size	9
+displaylabel	1
+labelwidth	50
+focusorderdat	
+format	string
+lock	0
+contextmenu	menu2
+sizetoparent	1
