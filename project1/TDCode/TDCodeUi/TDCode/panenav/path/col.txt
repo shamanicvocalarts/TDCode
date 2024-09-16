@@ -1,0 +1,3 @@
+default	col_off
+rollover	col_off
+select	col_off
