@@ -1,0 +1,155 @@
+#parexec1
+import os
+
+class EditorPaneManager:
+    def __init__(self):
+        self.editor_pane = None
+        self.original_ratio = None
+        self.pane_name = "TDCode"
+
+    def showEditorPane(self):
+        if self.editor_pane is None:
+            self.createEditorPane()
+        else:
+            self.restoreEditorPane()
+
+    def createEditorPane(self):
+        create_pane_op = op('createPane')
+        if create_pane_op is None:
+            print("Error: Could not find the createPane operator.")
+            return
+
+        # Check if the createPane DAT is bypassed
+        if create_pane_op.bypass:
+            print("Warning: createPane DAT is bypassed. No new editor pane will be created.")
+            return
+
+        new_pane = mod(create_pane_op).createEditorPane()
+        if new_pane is None:
+            print("Error: Failed to create a new editor pane.")
+            return
+
+        self.editor_pane = new_pane
+        self.original_ratio = new_pane.ratio
+        self.editor_pane.name = self.pane_name
+        print(f"New editor pane created with ratio: {new_pane.ratio}")
+
+    def restoreEditorPane(self):
+        if self.editor_pane:
+            try:
+                self.editor_pane.ratio = self.original_ratio
+                print(f"Editor pane restored with ratio: {self.editor_pane.ratio}")
+            except:
+                print("Failed to restore editor pane. Creating a new one.")
+                self.createEditorPane()
+        else:
+            self.createEditorPane()
+
+    def hideEditorPane(self):
+        if self.editor_pane:
+            try:
+                self.editor_pane.ratio = 0.0001  # Set to a very small value instead of 0
+                print(f"Editor pane hidden (ratio set to {self.editor_pane.ratio})")
+            except:
+                print("Failed to hide editor pane. It may no longer exist.")
+                self.editor_pane = None
+        else:
+            print("No editor pane to hide")
+
+    def closeEditorPane(self):
+        if self.editor_pane:
+            try:
+                self.editor_pane.close()
+                print("Editor pane closed")
+            except:
+                print("Failed to close editor pane. It may no longer exist.")
+            finally:
+                self.editor_pane = None
+        else:
+            print("No editor pane to close")
+
+editor_manager = EditorPaneManager()
+
+def onValueChange(par, prev):
+    if par.name == 'Datsmenu':
+        selected_dat_path = par.eval()
+        if selected_dat_path:
+            selected_dat = op(selected_dat_path)
+            if selected_dat and selected_dat.isDAT:
+                content = selected_dat.text
+                mod(op('webserver1_callbacks')).SendContentToEditor(content, selected_dat_path)
+            else:
+                print("Selected operator is not a DAT")
+        else:
+            print("No DAT selected")
+    
+    elif par.name == 'Showeditor':
+        if par.eval():
+            editor_manager.showEditorPane()
+        else:
+            editor_manager.hideEditorPane()
+    elif par.name == 'Enablecopilot':
+        is_enabled = par.eval()
+        print(f"Enablecopilot changed to: {is_enabled}")
+        send_copilot_status(is_enabled)
+    elif par.name in ['Provider', 'Model', 'Usecustomprompt', 'Usetechnologies', 'Useexternalcontext', 'Customprompt', 'Technologies', 'Externalcontext']:
+        send_copilot_config()
+
+def send_copilot_status(is_enabled):
+    config = get_current_copilot_config()
+    config['isEnabled'] = is_enabled
+    mod(op('webserver1_callbacks')).send_copilot_config(config)
+
+def get_current_copilot_config():
+    return {
+        'provider': parent.TDC.par.Provider.eval(),
+        'model': parent.TDC.par.Model.eval(),
+        'useCustomPrompt': parent.TDC.par.Usecustomprompt.eval(),
+        'useTechnologies': parent.TDC.par.Usetechnologies.eval(),
+        'useExternalContext': parent.TDC.par.Useexternalcontext.eval(),
+        'customPrompt': parent.TDC.par.Customprompt.eval(),
+        'technologies': parent.TDC.par.Technologies.eval(),
+        'externalContext': parent.TDC.par.Externalcontext.eval()
+    }
+
+def send_copilot_config():
+    config = get_current_copilot_config()
+    config['isEnabled'] = parent.TDC.par.Enablecopilot.eval()
+    mod(op('webserver1_callbacks')).send_copilot_config(config)
+    
+
+def GetDatsList():
+    datPaths = parent().par.Dats.menuNames
+    datRelPaths = parent().par.Dats.menuLabels
+    return [{'path': datPaths[i], 'name': datRelPaths[i]} for i in range(len(datPaths))]
+
+
+def onPulse(par):
+    if par.name == "Apipulse":
+        endpoint = parent.TDC.par.Apiendpoint.eval()
+        key = parent.TDC.par.Apikey.eval()
+        print(f"Setting environment variable: {endpoint}={key}")
+        
+        # Set the environment variable using setx (will be persistent)
+        os.system(f"setx {endpoint} {key}")
+        
+        # Manually add it to os.environ so it's accessible in the current session
+        os.environ[endpoint] = key
+        
+        # Now you can access it immediately in the current session
+        env_var = os.environ.get(endpoint, 'Variable not found')
+        print(f"Retrieved from os.environ: {env_var}")
+
+    return
+
+def onExpressionChange(par, val, prev):
+    return
+
+def onExportChange(par, val, prev):
+    return
+
+def onEnableChange(par, val, prev):
+    return
+
+def onModeChange(par, val, prev):
+    return
