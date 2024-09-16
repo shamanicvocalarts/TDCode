@@ -1,0 +1,47 @@
+set cols = `par("../list/tablecols")`
+set rows = `par("../list/tablerows")`
+
+set currentrow = `$R%$rows`
+set currentcol = `floor($R/$rows)`
+
+set celltype = `tab("cell_attributes",$currentrow,0)`
+
+set borderleft = 0
+set borderright = 0
+set bordermult = 1
+
+if ($currentcol == 0)
+
+	set borderleft = 1
+	
+	if ($cols <= 1)
+		
+		set borderright = 1
+	
+	endif
+	
+else if ($currentcol > 0 && $currentcol == `$cols-1`)
+
+	set borderright = 1
+
+endif
+
+if ($celltype == "divider")
+
+	set bordermult = 5
+
+endif
+
+if ($C == 0)
+
+	echo `$borderleft*$bordermult`
+
+else if ($C == 1)
+
+	echo `$borderright*$bordermult`
+
+else
+
+	echo 0
+	
+endif
