@@ -1,0 +1,26 @@
+def onTableChange(dat):
+    string_menus_to_populate = ['Opsmenu']
+    if dat and dat.numRows > 1:
+        opPaths = [dat[row, 'path'].val for row in range(1, dat.numRows)]
+        opRelPaths = [dat[row, 'path'].val for row in range(1, dat.numRows)]
+        for menu in string_menus_to_populate:
+            parent_param = parent().par[menu]
+            if parent_param:
+                parent_param.menuNames = opPaths
+                parent_param.menuLabels = opRelPaths  # Use paths for labels as well
+        
+        # We don't need to add blank lines for OPs, so we'll skip that part
+    else:
+        for menu in string_menus_to_populate:
+            parent_param = parent().par[menu]
+            if parent_param:
+                parent_param.menuNames = []
+                parent_param.menuLabels = []
+
+    op('webserver1_callbacks').module.UpdateOpsListInEditor()
+    return
+
+def GetOpsList():
+    opPaths = parent().par.Opsmenu.menuNames
+    opRelPaths = parent().par.Opsmenu.menuLabels
+    return [{'path': opPaths[i], 'name': opRelPaths[i]} for i in range(len(opPaths))]
