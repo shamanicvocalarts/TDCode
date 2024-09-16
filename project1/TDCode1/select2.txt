@@ -1,0 +1,4 @@
+parexec1	/ui/dialogs/bookmark_bar/TDCButton/parexec1	parexec1	1
+panelexec1	/ui/dialogs/bookmark_bar/TDCButton/panelexec1	panelexec1	1
+opfind1_callbacks	/ui/dialogs/bookmark_bar/TDCButton/opfind1_callbacks	opfind1_callbacks	1
+opfind2_callbacks	/ui/dialogs/bookmark_bar/TDCButton/opfind2_callbacks	opfind2_callbacks	1
