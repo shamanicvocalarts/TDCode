@@ -1,0 +1,24 @@
+if($arg3 == -1)
+	opparm path paneldisplay (1)
+	opparm pathfield paneldisplay (0)
+	set path = `trim(tab("setpath",0,0))`
+	for i=`argxc($path,"/")` to 0 step -1
+		
+		if (`opexists($path)`)
+			break
+		else
+			set path = `substr($path,0,rindex($path,"/"))`
+		endif
+		
+	end
+
+	if (`opexists($path)`)
+		tabcell setpath rc 0 0 $path
+		tabcell nodeid rc 0 0 `oppathtoid("$path")`
+		desk -p $path $pane
+		sethistory $path
+	else
+		desk -p / $pane
+		sethistory /
+	endif
+endif
