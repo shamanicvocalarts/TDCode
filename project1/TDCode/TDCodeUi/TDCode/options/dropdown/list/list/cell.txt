@@ -1,0 +1,3 @@
+default	cell_off
+rollover	cell_off
+select	cell_off
