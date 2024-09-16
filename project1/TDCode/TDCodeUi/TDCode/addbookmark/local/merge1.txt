@@ -1,0 +1,6 @@
+borderleft	1
+borderright	1
+bordertop	0
+borderbottom	1
+sizetoparent	1
+font_size	11
