@@ -1,0 +1,9 @@
+def updater():
+	return parent().par.Updatesystem.eval().ext.Updater
+
+def onValueChange(par, prev):
+	updater().onUpdateCompParValueChange(par, prev, parent())
+
+def onPulse(par):
+	updater().onUpdateCompParPulse(par, parent())	
+	
