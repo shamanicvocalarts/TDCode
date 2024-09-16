@@ -1,0 +1,12 @@
+label	Button
+displaylabel	0
+labelwidth	50
+font_size	9
+bold	0
+type	momentary
+groupdat	
+grouplabel	
+channelname	bstate
+buttonlabel	Cancel
+sizetoparent	1
+fontsize	main
