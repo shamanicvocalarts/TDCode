@@ -1,0 +1,3 @@
+set scroll = `fit(panel("..","v"),0,1,1,0)`
+set scroll = `clamp(round($scroll*par("../list/list/panelh")/20),0,tabnr("../alldata"))`
+tabcell ../scrollpos_old rc 0 0 $scroll
