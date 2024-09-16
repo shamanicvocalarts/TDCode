@@ -1,0 +1,7 @@
+controlpanel	/project1/TDCode/TDCodeUi/TDCode
+pane	TDCode
+floating	0
+tearoff	1
+TOUCHVERSION	88
+TOUCHBUILD	49540
+TOUCHTIME	Tue
