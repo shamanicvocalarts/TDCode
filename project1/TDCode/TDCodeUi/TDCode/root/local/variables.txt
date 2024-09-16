@@ -1,0 +1,6 @@
+gadget	/project1/TDCode/TDCodeUi/TDCode/root
+colorexp	/ui/lib/TUIK2/colors/exp
+color	/ui/lib/TUIK2/colors/color
+TOUCHVERSION	088
+TOUCHBUILD	6860
+TOUCHTIME	Mon Feb 25 13:51:16 2013
