@@ -1,0 +1,8 @@
+TDCode		
+Split Left/Right	Alt+[	desk -h TDCode 0.5
+Split Top/Bottom	Alt+]	desk -v TDCode 0.5
+Duplicate Pane		desk -d TDCode
+Floating Copy		desk -o TDCode
+Open in Browser		
+Maximize	Alt+\`	click /project1/TDCode/TDCodeUi/TDCode/maxmin/button
+Close	Alt+z	desk -c TDCode
