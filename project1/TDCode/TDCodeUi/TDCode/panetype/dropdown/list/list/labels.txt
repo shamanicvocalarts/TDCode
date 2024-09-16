@@ -1,0 +1,16 @@
+Network Editor
+Panel
+Geometry Viewer
+TOP Viewer
+CHOP Viewer
+Animation Editor
+Parameters
+Textport and DATs
+Alt+1
+Alt+2
+Alt+3
+Alt+4
+Alt+5
+Alt+6
+Alt+7
+Alt+9
