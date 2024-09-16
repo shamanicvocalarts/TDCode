@@ -1,0 +1,4 @@
+name	family	type	children	r	d	v	t	f	l	e	b	C	p	a	path
+local	COMP	base	8	0	0	1	0	0	0	1	0	0	0	0	/local
+perform	COMP	window	0	0	0	1	0	0	0	1	0	0	0	0	/perform
+project1	COMP	container	8	0	0	1	0	0	0	1	0	1	1	0	/project1
