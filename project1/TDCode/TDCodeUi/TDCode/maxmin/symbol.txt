@@ -1,0 +1,8 @@
+up	N
+down	M
+left	<
+right	>
+circle	h
+star	^
+max	»
+min	½
