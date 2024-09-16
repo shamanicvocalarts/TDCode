@@ -1,0 +1,9 @@
+label	Button
+displaylabel	1
+labelwidth	50
+font_size	9
+bold	0
+type	momentary
+channelname	v1
+sizetoparent	0
+buttonlabel	Momentary
