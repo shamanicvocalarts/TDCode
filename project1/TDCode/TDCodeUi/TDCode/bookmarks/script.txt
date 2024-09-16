@@ -1,0 +1,14 @@
+if ($arg1 == 0)
+
+	controlpanel -m 50 -50 -o $controlpanel/addbookmark -f
+
+else if ($arg1 == 1)
+
+	controlpanel -o $DIALOGS/dialog_bookmarks -f
+
+else if ($arg1 >2)
+
+	set path = `tab("$controlpanel/bookmarklist",$arg1-3,1)`
+	desk -p $path $pane
+
+endif
