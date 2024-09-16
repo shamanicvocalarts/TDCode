@@ -1,0 +1,2 @@
+on	$colorexp/label_text
+disable	$colorexp/label_text_disable
