@@ -1,0 +1,5 @@
+if($arg3 == 1)
+	desk -f 1 $pane
+else
+	desk -f 0 $pane
+endif
