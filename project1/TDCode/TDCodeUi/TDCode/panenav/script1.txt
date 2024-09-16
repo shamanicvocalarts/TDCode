@@ -1,0 +1,17 @@
+#get monitor
+set mousex = `mouse("x")`
+set mousey = `mouse("y")`
+set monitor = `coordtomonitor($mousex,$mousey)`
+set monitorw = `monitorwidth($monitor)`
+set monitorh = `monitorheight($monitor)`
+set monitorl = `monitorleft($monitor)`
+set monitorr = `monitorright($monitor)`
+set monitort = `monitortop($monitor)`
+set monitorb = `monitorbottom($monitor)`
+set x = `panelmouse("..","x")`
+set y = `panelmouse("..","y")`
+
+if(`$arg3%2` == 1)
+	tabcell menuId rc 0 0 $arg3
+	run openMenu $mousex $mousey
+endif
