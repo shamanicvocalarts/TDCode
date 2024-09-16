@@ -1,0 +1,16 @@
+set name = $arg1
+set path = $arg7
+set full = `substitute("$arg7/$arg1","//","/")`
+if (`strmatch("COMP:*",optype($full))` == 1)
+
+	set path = $full
+
+endif
+
+#set idhist
+tabcell setpath rc 0 0 $path
+tabcell nodeid rc 0 0 `oppathtoid($path)`
+	
+#add to history
+sethistory $path
+desk -p $path $pane
