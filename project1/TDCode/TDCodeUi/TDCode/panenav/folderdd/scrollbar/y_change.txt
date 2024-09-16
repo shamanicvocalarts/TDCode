@@ -1,0 +1,5 @@
+set y = `par("knob/panely")`
+set maxy = `par("knob/repositionymax")`
+set y = `fit($y,0,$maxy,1,0)`
+set y = `clamp(round($y*par("../list/list/panelh")/20),0,tabnr("../alldata"))`
+tabcell ../scrollpos_old rc 0 0 $y
