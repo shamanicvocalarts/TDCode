@@ -1,0 +1,4 @@
+dialogname	Add Bookmark
+helplink	http://www.derivative.ca/wiki/index.php
+sizetoparent	1
+font_size	9
