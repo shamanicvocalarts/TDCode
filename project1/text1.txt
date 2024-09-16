@@ -1,0 +1,15 @@
+
+
+# calculate the sum of the elements in the list 
+sum_of_elements = sum(list_of_elements)
+average_of_elements = sum_of_elements / len(list_of_elements)
+
+
+
+
+
+
+
+
+
+
