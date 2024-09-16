@@ -1,0 +1,12 @@
+items	`floor(par("$gadget/panelh")/20)`
+itemtype	button
+border	0
+margin	0
+columnwidth	-1
+fieldtype	string
+reorder	1
+delete	1
+scrollbar	1
+contextmenu	menu2
+sizetoparent	1
+font_size	9
