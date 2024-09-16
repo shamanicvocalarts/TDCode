@@ -1,0 +1,189 @@
+//monacopilot_config.js
+
+import { Copilot, registerCopilot } from 'https://unpkg.com/monacopilot@0.9.30/build/index.mjs';
+
+let copilotInstance = null;
+let isCopilotEnabled = true;
+let currentConfig = {};
+
+function safeDispose(instance) {
+    if (instance && typeof instance.dispose === 'function') {
+        instance.dispose();
+    } else {
+        console.log("No dispose method available, performing alternative cleanup");
+        // Perform alternative cleanup if necessary
+        instance = null;
+    }
+}
+
+
+
+async function getApiKey(provider) {
+    try {
+        const response = await fetch(`/api/getApiKey?provider=${encodeURIComponent(provider)}`);
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Failed to fetch API key: ${response.statusText}. Error: ${errorText}`);
+        }
+        return response.json();
+    } catch (error) {
+        console.error("Error in getApiKey:", error);
+        throw error;
+    }
+}
+
+
+
+export async function initializeMonacopilot(monaco, editor, language, options = {}) {
+    console.log("Initializing Monacopilot with options:", options);
+
+    try {
+        const provider = options.provider || 'groq';
+        console.log(`Using provider: ${provider}`);
+        const { key } = await getApiKey(provider);
+        console.log("Received API key:", key ? "REDACTED" : "undefined");
+
+        let copilotConfig;
+        if (provider === 'openrouter') {
+            copilotConfig = setupOpenRouter(key, options);
+        } else {
+            copilotConfig = {
+                model: options.model || 'llama-3-70b',
+                provider: provider
+            };
+        }
+        console.log("Copilot config:", copilotConfig);
+
+        // Create a new Copilot instance with the correct API key and config
+        copilotInstance = new Copilot(key, copilotConfig);
+
+        const copilotOptions = {
+            endpoint: options.endpoint || `${window.location.origin}/copilot`,
+            language: language,
+            externalContext: options.useExternalContext ? JSON.parse(options.externalContext) : undefined,
+            technologies: options.useTechnologies ? options.technologies.split(',') : undefined,
+            customPrompt: options.useCustomPrompt ? createCustomPrompt() : undefined,
+        };
+
+        registerCopilot(monaco, editor, copilotOptions);
+
+        // Monkey patch the fetch function to intercept and handle Copilot requests
+        const originalFetch = window.fetch;
+        window.fetch = async (url, fetchOptions) => {
+            if (url === copilotOptions.endpoint) {
+                if (!isCopilotEnabled) {
+                    //console.log("Monacopilot is disabled, not processing request");
+                    return new Response(JSON.stringify({ completion: '' }), {
+                        status: 200,
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                }
+                console.log("Processing Monacopilot request");
+                const request = JSON.parse(fetchOptions.body);
+                try {
+                    console.log("Sending request to Copilot instance");
+                    const completion = await copilotInstance.complete({ body: request });
+                    console.log("Received Copilot completion:", completion);
+                    return new Response(JSON.stringify(completion), {
+                        status: 200,
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                } catch (error) {
+                    console.error("Error in Copilot request:", error);
+                    throw error;
+                }
+            }
+            return originalFetch(url, fetchOptions);
+        };
+
+        console.log("Monacopilot initialized for", language);
+    } catch (error) {
+        console.error("Failed to initialize Monacopilot:", error);
+    }
+}
+
+export function enableMonacopilot(monaco, editor, config = {}) {
+    console.log("Enabling Monacopilot with config:", config);
+    isCopilotEnabled = true;
+    initializeMonacopilot(monaco, editor, editor.getModel().getLanguageId(), config);
+}
+
+export function disableMonacopilot(monaco, editor) {
+    console.log("Disabling Monacopilot");
+    isCopilotEnabled = false;
+    safeDispose(copilotInstance);
+    copilotInstance = null;
+
+    // Remove Monacopilot suggestions provider
+    monaco.languages.registerCompletionItemProvider('*', {
+        provideCompletionItems: () => ({ suggestions: [] })
+    });
+}
+
+
+export function updateMonacopilotLanguage(monaco, editor, language, options = {}) {
+    if (copilotInstance) {
+        const copilotOptions = {
+            endpoint: options.endpoint || `${window.location.origin}/copilot`,
+            language: language,
+            externalContext: options.useExternalContext ? getExternalContext() : undefined,
+            technologies: options.useTechnologies ? getTechnologies() : undefined,
+            customPrompt: options.useCustomPrompt ? createCustomPrompt() : undefined,
+        };
+        registerCopilot(monaco, editor, copilotOptions);
+        console.log("Monacopilot language updated to", language);
+    } else {
+        console.error("Monacopilot not initialized");
+    }
+}
+
+export function setupOpenRouter(apiKey, options) {
+    console.log("Setting up OpenRouter with API key:", apiKey ? "REDACTED" : "undefined");
+    console.log("Options:", options);
+
+    return {
+        model: {
+            config: (apiKey, prompt) => ({
+                endpoint: 'https://openrouter.ai/api/v1/chat/completions',
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                    'HTTP-Referer': options.siteUrl || window.location.origin,
+                    'X-Title': options.siteName || 'TDCode',
+                    'Content-Type': 'application/json',
+                },
+                body: {
+                    model: options.model || 'deepseek/deepseek-chat',
+                    messages: [
+                        { role: 'user', content: prompt.user }
+                    ],
+                },
+            }),
+            transformResponse: (response) => {
+                console.log("Raw API response:", response);
+                return {
+                    completion: response.choices[0].message.content,
+                };
+            },
+        },
+    };
+}
+
+
+function getExternalContext() {
+    return [];
+}
+
+function getTechnologies() {
+    return ['python', 'touchdesigner'];
+}
+
+function createCustomPrompt() {
+    return ({ language, textBeforeCursor, textAfterCursor }) => ({
+        system: `You are an AI assistant specialized in writing ${language} code for TouchDesigner projects.`,
+        user: `Complete the following ${language} code:
+${textBeforeCursor}
+// Cursor position
+${textAfterCursor}
+Provide only the code completion without additional comments.`,
+    });
+}
