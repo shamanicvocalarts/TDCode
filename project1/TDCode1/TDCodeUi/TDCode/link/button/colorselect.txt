@@ -1,0 +1,4 @@
+path	parameter	value
+"parentoverride"	"dat"	ifs(panelp("../dropdown", "winopen") == 0 && panelp("../dropdown", "display") == 0, "off", "on")
+"parentoverride"	"dat"	ifs(panelp("..", "rollover") == 1, tabc(".",$R-1,"value")+roll, tabc(".",$R-1,"value"))
+"parentoverride"	"dat"	ifs(panelp("..", "enable") == 0, tabr("colorstates","disable",1), tabr("colorstates",tabc(".",$R-1,"value"),1))
