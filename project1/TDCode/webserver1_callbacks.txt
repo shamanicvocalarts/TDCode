@@ -1,0 +1,389 @@
+#webserver1_callbacks
+
+import json
+import time
+import base64
+import hashlib
+import os
+
+
+# Global variables for tracking state
+last_known_hashes = {}
+is_updating = False
+
+def onHTTPRequest(webServerDAT, request, response):
+    """
+    Handle incoming HTTP requests by routing them to the appropriate content.
+    """
+    uri = request['uri']
+    
+    # Access the webserver_routes table
+    routes_table = op('webserver_routes')
+
+    if uri == '/api/getApiKey':
+        return handle_api_key_request(request, response)
+
+
+    
+    # Iterate over the rows to find the matching route
+    for row in routes_table.rows():
+        route_uri = row[0].val
+        
+        # Check if the URI matches
+        if route_uri == uri:
+            operator_name = row[1].val
+            content_type = row[2].val if row[2].val else 'text/html'
+            
+            # Set response fields
+            response['statusCode'] = 200
+            response['statusReason'] = 'OK'
+            response['data'] = op(operator_name).text
+            response['content-type'] = content_type
+            return response
+    
+    # If no match is found, return 404
+    response['statusCode'] = 404
+    response['statusReason'] = 'Not Found'
+    response['data'] = '404 - Not Found'
+    
+    return response
+
+def onWebSocketOpen(webServerDAT, client, uri):
+    """
+    Handle new WebSocket connections.
+    """
+    print(f"WebSocket connection opened with {client}")
+    UpdateDatsListInEditor()
+
+def onWebSocketClose(webServerDAT, client):
+    """
+    Handle closed WebSocket connections.
+    """
+    print(f"WebSocket connection closed with {client}")
+
+def onWebSocketReceiveText(webServerDAT, client, data):
+    """
+    Process incoming WebSocket messages.
+    """
+    try:
+        message = json.loads(data)
+        if message['action'] == 'updateTDParameter':
+            # Update TouchDesigner parameters based on editor selection
+            if message['type'] == 'dats':
+                parent.TDC.par.Datsmenu = message['path']
+            elif message['type'] == 'ops':
+                parent.TDC.par.Opsmenu = message['path']
+        elif message['action'] == 'contentChanged':
+            # Update DAT content in TouchDesigner
+            path = message.get('path')
+            content = message['content']
+            content = base64.b64decode(content).decode('utf-8')
+            if path:
+                target_dat = op(path)
+                if target_dat and target_dat.isDAT:
+                    run(lambda p=path, c=content: setattr(op(p), 'text', c), delayFrames=1)
+            else:
+                print("Received content without path:", content[:100])
+        elif message['action'] == 'selectDat':
+            # Send DAT content to editor
+            path = message.get('path')
+            if path:
+                target_dat = op(path)
+                if target_dat and target_dat.isDAT:
+                    if CheckDatContentChanged(path):
+                        content = target_dat.text
+                        SendContentToEditor(content, path, updateType='external')
+                    else:
+                        SendContentToEditor(target_dat.text, path)
+                else:
+                    print(f"Invalid target DAT: {path}")
+        elif message['action'] == 'selectOp':
+            # Send OP parameters to editor
+            path = message.get('path')
+            if path:
+                target_op = op(path)
+                if target_op:
+                    op_json = GetOpParametersAsJSON(target_op)
+                    SendContentToEditor(op_json, path, language='json')
+                else:
+                    print(f"Invalid target OP: {path}")
+        elif message['action'] == 'updateOpParameters':
+            # Update OP parameters in TouchDesigner
+            path = message.get('path')
+            parameters = message.get('parameters')
+            if path and parameters:
+                target_op = op(path)
+                if target_op:
+                    UpdateOpParameters(target_op, parameters)
+                else:
+                    print(f"Invalid target OP: {path}")
+        elif message['action'] == 'copilotRequest':
+            # The actual completion is handled client-side, 
+            # so we just need to pass the message back
+            webServerDAT.webSocketSendText(client, json.dumps({
+                'action': 'copilotResponse',
+                'request': message['request']
+            }))
+
+    except json.JSONDecodeError:
+        print("Received invalid JSON data")
+    except Exception as e:
+        print(f"Error processing WebSocket message: {str(e)}")
+
+def SendContentToEditor(content, path, language='python', action='updateContent', updateType='internal'):
+    """
+    Send content to the editor via WebSocket.
+    """
+    global is_updating
+    if is_updating:
+        print("Update in progress, skipping...")
+        return
+
+    is_updating = True
+    # Encode the content
+    content = base64.b64encode(content.encode('utf-8')).decode('utf-8')
+    message = json.dumps({
+        'action': action,
+        'content': content,
+        'path': path,
+        'language': language,
+        'updateType': updateType
+    })
+    webserver = op('webserver1')
+    if webserver and webserver.webSocketConnections:
+        try:
+            for client in webserver.webSocketConnections:
+                webserver.webSocketSendText(client, message)
+            print(f"WebSocket message sent successfully for path: {path}")
+        except Exception as e:
+            print(f"Error sending WebSocket message: {str(e)}")
+    else:
+        print("Error: No WebSocket connections available")
+
+    time.sleep(0.1)  # Short delay to ensure message is processed
+    is_updating = False
+
+def get_dat_hash(dat):
+    """
+    Generate a hash of the DAT's content.
+    """
+    return hashlib.md5(dat.text.encode()).hexdigest()
+
+def CheckDatContentChanged(path):
+    """
+    Check if a DAT's content has changed since last access.
+    """
+    dat_op = op(path)
+    if dat_op and dat_op.isDAT:
+        current_hash = get_dat_hash(dat_op)
+        if path not in last_known_hashes or last_known_hashes[path] != current_hash:
+            last_known_hashes[path] = current_hash
+            return True
+    return False
+
+# Additional WebSocket callbacks
+def onWebSocketReceiveBinary(webServerDAT, client, data):
+    print(f"Received binary data from {client}, length: {len(data)}")
+
+def onWebSocketReceivePing(webServerDAT, client, data):
+    print(f"Received ping from {client}")
+    webServerDAT.webSocketSendPong(client, data)
+
+def onWebSocketReceivePong(webServerDAT, client, data):
+    print(f"Received pong from {client}")
+
+def onServerStart(webServerDAT):
+    print("WebServer started")
+
+def onServerStop(webServerDAT):
+    print("WebServer stopped")
+
+def send_copilot_status(is_enabled):
+    print(f"Sending copilot status: {is_enabled}")
+    message = json.dumps({
+        'action': 'updateCopilotStatus',
+        'isEnabled': is_enabled
+    })
+    webserver = op('webserver1')
+    if webserver and webserver.webSocketConnections:
+        for client in webserver.webSocketConnections:
+            webserver.webSocketSendText(client, message)
+
+def send_copilot_config(config):
+    message = json.dumps({
+        'action': 'updateCopilotConfig',
+        'config': config
+    })
+    webserver = op('webserver1')
+    if webserver and webserver.webSocketConnections:
+        for client in webserver.webSocketConnections:
+            webserver.webSocketSendText(client, message)
+
+def SendDatContent(path):
+    """'''  '''
+    Send DAT content to the editor.
+    """ 
+    dat_op = op(path)
+    if dat_op and dat_op.isDAT:
+        content = dat_op.text
+        SendContentToEditor(content, path, action='updateContent', updateType='external')
+
+def UpdateDatsListInEditor():
+    """
+    Update the list of DATs in the editor.
+    """
+    webserver = op('webserver1')
+    if webserver and webserver.webSocketConnections:
+        dats = op('datexec1').module.GetDatsList()
+        dat_contents = {}
+        for dat in dats:
+            try:
+                dat_op = op(dat['path'])
+                if dat_op and dat_op.isDAT:
+                    dat_contents[dat['name']] = dat_op.text
+            except:
+                pass
+        message = json.dumps({
+            'action': 'updateDatsList',
+            'dats': dats,
+            'datContents': dat_contents
+        })
+        for client in webserver.webSocketConnections:
+            webserver.webSocketSendText(client, message)
+    
+    UpdateOpsListInEditor()
+
+def UpdateOpsListInEditor():
+    """
+    Update the list of OPs in the editor.
+    """
+    webserver = op('webserver1')
+    if webserver and webserver.webSocketConnections:
+        ops = op('datexec2').module.GetOpsList()
+        message = json.dumps({
+            'action': 'updateOpsList',
+            'ops': ops
+        })
+        for client in webserver.webSocketConnections:
+            webserver.webSocketSendText(client, message)
+
+def GetOpParametersAsJSON(op):
+    """
+    Convert an OP's parameters to a JSON string.
+    """
+    parameters = {}
+    for p in op.pars():
+        try:
+            # Get the basic parameter value
+            value = p.eval()
+            
+            # Create a dictionary to store parameter info
+            param_info = {
+                'value': value if isinstance(value, (int, float, str, bool)) else str(value)
+            }
+            
+            # Add expression information if it exists
+            if p.expr:
+                param_info['expression'] = p.expr
+            
+            # Add binding information if it exists
+            if p.bindExpr:
+                param_info['bind_expression'] = p.bindExpr
+            
+            # Add export information if it exists
+            if p.exportSource:
+                param_info['export_source'] = str(p.exportSource)
+            
+            # Add mode information
+            param_info['mode'] = str(p.mode)
+            
+            # Add information about parameters bound to this one
+            bind_references = p.bindReferences
+            if bind_references:
+                param_info['bind_references'] = [str(ref.owner) + '.' + ref.name for ref in bind_references]
+            
+            parameters[p.name] = param_info
+        
+        except Exception as e:
+            print(f"Error serializing parameter '{p.name}': {e}")
+            parameters[p.name] = {"error": str(e)}
+    
+    return json.dumps(parameters, indent=2)
+
+
+
+def UpdateOpParameters(op, parameters):
+    """
+    Update an OP's parameters based on the provided JSON data.
+    """
+    for name, param_info in parameters.items():
+        if hasattr(op.par, name):
+            p = getattr(op.par, name)
+            
+            # Update value
+            if 'value' in param_info:
+                p.val = param_info['value']
+            
+            # Update expression if it exists and the parameter supports it
+            if 'expression' in param_info and hasattr(p, 'expr'):
+                p.expr = param_info['expression']
+            
+            # Update binding if it exists and the parameter supports it
+            if 'bind_expression' in param_info and hasattr(p, 'bindExpr'):
+                p.bindExpr = param_info['bind_expression']
+            
+            # Update export if it exists and the parameter supports it
+            if 'export_source' in param_info and hasattr(p, 'exportSource'):
+                source_op = op(param_info['export_source'])
+                if source_op:
+                    p.exportSource = source_op
+
+def onOperatorParameterChange(par):
+    """
+    Callback function triggered when an operator parameter changes.
+    """
+    op = par.owner
+    path = op.path
+    parameters = GetOpParametersAsJSON(op)
+    SendContentToEditor(parameters, path, language='json', action='updateOpParameters')
+
+
+def handle_api_key_request(request, response):
+    print("Received API key request:", request)  # Debug print
+    query_params = request.get('pars', {})
+    provider = query_params.get('provider')
+    
+    if not provider:
+        print("Provider not specified in request")  # Debug print
+        response['statusCode'] = 400
+        response['statusReason'] = 'Bad Request'
+        response['data'] = json.dumps({"error": "Provider not specified"})
+        return response
+
+    print(f"Looking up endpoint for provider: {provider}")  # Debug print
+    # Assume 'api_endpoints' is a DAT storing provider-endpoint mappings
+    endpoints_dat = op('api_endpoints')
+    endpoint = endpoints_dat[provider, 1].val if provider in endpoints_dat.col('provider') else None
+
+    if not endpoint:
+        print(f"Endpoint for {provider} not found")  # Debug print
+        response['statusCode'] = 404
+        response['statusReason'] = 'Not Found'
+        response['data'] = json.dumps({"error": f"Endpoint for {provider} not found"})
+        return response
+
+    print(f"Found endpoint: {endpoint}")  # Debug print
+    key = os.environ.get(endpoint)
+    if not key:
+        print(f"API key for {provider} not found in environment variables")  # Debug print
+        response['statusCode'] = 404
+        response['statusReason'] = 'Not Found'
+        response['data'] = json.dumps({"error": f"API key for {provider} not found"})
+        return response
+
+    print("Sending successful response")  # Debug print
+    response['statusCode'] = 200
+    response['statusReason'] = 'OK'
+    response['content-type'] = 'application/json'
+    response['data'] = json.dumps({"endpoint": endpoint, "key": key})
+    return response
