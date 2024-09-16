@@ -1,0 +1,9 @@
+# me is this DAT.
+# 
+# panelValue is the PanelValue object that changed.
+# 
+# Make sure the corresponding toggle is enabled in the Panel Execute DAT.
+
+def offToOn(panelValue):
+	op('pathfield').setKeyboardFocus(0,0,selectAll=True)
+	return
