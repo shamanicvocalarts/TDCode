@@ -1,0 +1,5 @@
+provider	endpoint	models	
+groq	GROQ_API_KEY	llama-3-70b	
+openai	OPENAI_API_KEY	gpt-4o, gpt-4o-mini, o1-preview, o1-mini	
+anthropic	ANTHROPIC_API_KEY	claude-3.5-Sonnet, claude-3-opus, claude-3-sonnet, claude-3-haiku	
+openrouter	OPENROUTER_API_KEY		
