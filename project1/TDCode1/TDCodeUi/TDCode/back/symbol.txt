@@ -1,0 +1,6 @@
+up	N
+down	M
+left	o
+right	p
+circle	h
+star	^
