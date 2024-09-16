@@ -1,0 +1,37 @@
+# me - this DAT
+# panelValue - the PanelValue object that changed
+# 
+# Make sure the corresponding toggle is enabled in the Panel Execute DAT.
+
+TDF = op.TDModules.mod.TDFunctions
+
+def onOffToOn(panelValue):
+	if not panelValue.owner.panel.ctrl:
+		return
+	op.TDResources.op('popMenu').Open(
+						items=['Parameters', 'Viewer', 'Network', 'Customize Component'],
+						callback=onPopMenu)
+
+def onPopMenu(info):
+	if info['item'] == 'Parameters':
+		parent.Widget.openParameters()
+	elif info['item'] == 'Viewer':
+		parent.Widget.openViewer()
+	elif info['item'] == 'Network':
+		TDF.showInPane(parent.Widget)
+	elif info['item'] == 'Customize Component':
+		op.TDDialogs.op('CompEditor').EditComp(parent.Widget)
+		
+
+def whileOn(panelValue):
+	return
+
+def onOnToOff(panelValue):
+	return
+
+def whileOff(panelValue):
+	return
+
+def onValueChange(panelValue):
+	return
+	
