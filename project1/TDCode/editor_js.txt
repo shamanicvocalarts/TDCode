@@ -1,0 +1,426 @@
+//editor.js
+import { initializeMonacopilot, updateMonacopilotLanguage, enableMonacopilot, disableMonacopilot } from './monacopilot_config.js';
+import { editorConfig } from './editor_config.js';
+import { setupWebSocket, sendWebSocketMessage, sendContentToServer, sendPendingChanges } from './websocket.js';
+import { setupUIEventListeners } from './ui.js';
+import { log, saveUndoHistory, loadUndoHistory, updateThemeVariables } from './utils.js';
+
+import { registerCopilot } from "https://unpkg.com/monacopilot@0.9.30/build/index.mjs";
+
+let editor; // The main Monaco editor instance
+let editorModels = {}; // Object to store editor models for different files
+let currentPath = ''; // Current file path being edited
+let isUpdating = false; // Flag to prevent update loops
+let isLiveMode = true; // Flag for live update mode
+let pendingChanges = {}; // Object to store changes when not in live mode
+let touchDesignerExtension; // Extension for TouchDesigner-specific functionality
+
+// Initialize the editor when Monaco is loaded
+require(['vs/editor/editor.main', 'touchdesigner'], function (monaco, td) {
+    touchDesignerExtension = td;
+    createEditor();
+    setupWebSocket();
+    setupUIEventListeners();
+});
+
+function createEditor() {
+    // Create the Monaco editor instance
+    editor = monaco.editor.create(document.getElementById('container'), editorConfig);
+
+    // Set up the initial theme
+    updateThemeVariables('vs-dark');
+    log("Editor created");
+
+    // Get the initial language and language file from the dropdown
+    const languageSelect = document.getElementById('language-select');
+    const initialLanguage = languageSelect.value;
+    const initialLanguageFile = languageSelect.options[languageSelect.selectedIndex].getAttribute('data-language-file');
+
+    // Change the editor language based on the initial selection
+    changeLanguage(initialLanguage, initialLanguageFile);
+
+    // Initialize Monacopilot after setting the initial language
+    initializeMonacopilot(monaco, editor, initialLanguage, {
+        provider: 'openrouter',
+        model: 'deepseek/deepseek-chat',
+        useExternalContext: false,
+        useTechnologies: true,
+        useCustomPrompt: true,
+        //siteUrl: window.location.origin,
+        //siteName: 'TDCode'
+    });
+
+    // Add event listener for language changes
+    languageSelect.addEventListener('change', function (e) {
+        const newLanguage = e.target.value;
+        const newLanguageFile = e.target.options[e.target.selectedIndex].getAttribute('data-language-file');
+        changeLanguage(newLanguage, newLanguageFile);
+    });
+
+
+
+    // Add custom actions to the editor
+    editor.addAction({
+        id: 'insert-greater-than',
+        label: 'Insert >',
+        contextMenuGroupId: 'customGroup',
+        contextMenuOrder: 1,
+        run: function (ed) {
+            ed.trigger('keyboard', 'type', { text: '>' });
+        }
+    });
+
+    editor.addAction({
+        id: 'insert-single-quote',
+        label: "Insert '",
+        contextMenuGroupId: 'customGroup',
+        contextMenuOrder: 2,
+        run: function (ed) {
+            ed.trigger('keyboard', 'type', { text: "'" });
+        }
+    });
+
+    // Set up event listener for content changes
+    editor.onDidChangeModelContent(function (e) {
+        if (currentPath && !isUpdating) {
+            var content = editor.getValue();
+            content = btoa(unescape(encodeURIComponent(content)));
+            if (isLiveMode) {
+                sendContentToServer(content, currentPath);
+            } else {
+                pendingChanges[currentPath] = content;
+            }
+            saveUndoHistory();
+        }
+    });
+
+    // Set up event listener for JSON content changes (for OP parameters)
+    editor.onDidChangeModelContent(function (e) {
+        if (currentPath && !isUpdating && editor.getModel().getLanguageId() === 'json') {
+            var content = editor.getValue();
+            try {
+                const parameters = JSON.parse(content);
+                sendOpParameters(JSON.stringify(parameters), currentPath);
+            } catch (error) {
+                console.error('Invalid JSON:', error);
+            }
+        }
+    });
+
+}
+
+
+
+// Handle incoming WebSocket messages
+function handleWebSocketMessage(data) {
+    if (data.action === 'updateContent') {
+        updateEditorContent(data);
+    } else if (data.action === 'updateDatsList') {
+        updateDatsDropdown(data.dats);
+        if (data.datContents) {
+            updateDatContents(data.datContents);
+        }
+    } else if (data.action === 'updateOpsList') {
+        updateOpsDropdown(data.ops);
+    } else if (data.action === 'updateOpParameters') {
+        updateOpParameters(data.path, JSON.parse(data.content));
+    } else if (data.action === 'updateCopilotStatus') {
+        updateCopilotStatus(data.isEnabled);
+    } else if (data.action === 'updateCopilotConfig') {
+        updateCopilotConfig(data.config);
+    }
+}
+
+function updateCopilotConfig(config) {
+    console.log("Updating Copilot config:", config);
+    if (config.isEnabled) {
+        enableMonacopilot(monaco, editor, config);
+    } else {
+        disableMonacopilot(monaco, editor);
+    }
+}
+
+function updateCopilotStatus(isEnabled) {
+    console.log("Updating copilot status:", isEnabled);
+    try {
+        if (isEnabled) {
+            enableMonacopilot(monaco, editor);
+        } else {
+            disableMonacopilot(monaco, editor);
+        }
+    } catch (error) {
+        console.error("Error updating Copilot status:", error);
+    }
+}
+
+
+
+
+// Update editor content with data from DATs
+function updateDatContents(datContents) {
+    let datSuggestions = [];
+    for (let [datName, content] of Object.entries(datContents)) {
+        let lines = content.split('\n');
+        for (let line of lines) {
+            let words = line.split(/\s+/);
+            for (let word of words) {
+                if (word.length > 2 && !datSuggestions.some(s => s.label === word)) {
+                    datSuggestions.push({
+                        label: word,
+                        kind: monaco.languages.CompletionItemKind.Text,
+                        insertText: word,
+                        documentation: `From DAT: ${datName}`
+                    });
+                }
+            }
+        }
+    }
+
+    // Add DAT suggestions to TouchDesigner extension
+    if (touchDesignerExtension && touchDesignerExtension.addDatSuggestions) {
+        touchDesignerExtension.addDatSuggestions(datSuggestions);
+    }
+}
+
+// Update the editor content
+function updateEditorContent(data) {
+    isUpdating = true;
+    var content = decodeURIComponent(escape(atob(data.content)));
+
+    if (editorModels[data.path]) {
+        const currentModel = editorModels[data.path].model;
+        const lastValue = currentModel.getValue();
+
+        if (lastValue !== content) {
+            const viewState = editor.saveViewState();
+            const selections = editor.getSelections();
+
+            // Create an edit operation
+            const editOperation = {
+                range: currentModel.getFullModelRange(),
+                text: content
+            };
+
+            // Push the edit operation to the undo stack
+            currentModel.pushEditOperations([], [editOperation], () => null);
+
+            editor.setModel(currentModel);
+            editor.restoreViewState(viewState);
+            editor.setSelections(selections);
+
+            // Save the undo history after the change
+            saveUndoHistory();
+        }
+    } else {
+        // Create a new model if it doesn't exist
+        let newModel = monaco.editor.createModel(content, data.language || 'python');
+        editorModels[data.path] = {
+            model: newModel,
+            viewState: null,
+            language: data.language || 'python'
+        };
+        editor.setModel(newModel);
+        monaco.editor.setModelLanguage(newModel, data.language || 'python');
+
+        document.getElementById('language-select').value = data.language || 'python';
+    }
+
+    currentPath = data.path;
+    setTimeout(() => { isUpdating = false; }, 100);
+}
+
+// Handle UI events
+function handleUIEvent(eventType, data) {
+    switch (eventType) {
+        case 'switchDAT':
+            switchDAT(data.path);
+            sendWebSocketMessage({
+                action: 'updateTDParameter',
+                type: 'dats',
+                path: data.path
+            });
+            break;
+        case 'switchOP':
+            switchOP(data.path);
+            sendWebSocketMessage({
+                action: 'updateTDParameter',
+                type: 'ops',
+                path: data.path
+            });
+            break;
+        case 'changeLanguage':
+            changeLanguage(data.languageName, data.languageFile);
+            break;
+        case 'changeTheme':
+            changeTheme(data.theme);
+            break;
+        case 'toggleLiveMode':
+            toggleLiveMode(data.isLive);
+            break;
+    }
+}
+
+// Switch to editing a different DAT
+function switchDAT(selectedPath) {
+    if (currentPath) {
+        storeEditorState();
+    }
+
+    if (selectedPath) {
+        if (editorModels[selectedPath]) {
+            restoreEditorState(selectedPath);
+        } else {
+            sendWebSocketMessage({
+                action: 'selectDat',
+                path: selectedPath
+            });
+        }
+        currentPath = selectedPath;
+    }
+}
+
+// Switch to editing a different OP
+function switchOP(selectedPath) {
+    if (currentPath) {
+        storeEditorState();
+    }
+
+    if (selectedPath) {
+        if (editorModels[selectedPath]) {
+            restoreEditorState(selectedPath);
+        } else {
+            sendWebSocketMessage({
+                action: 'selectOp',
+                path: selectedPath
+            });
+        }
+        currentPath = selectedPath;
+    }
+}
+
+// Change the editor language
+function changeLanguage(languageName, languageFile) {
+    if (languageFile) {
+        // Load custom language file if provided
+        loadLanguage(languageName, languageFile).then(() => {
+            monaco.editor.setModelLanguage(editor.getModel(), languageName);
+            if (currentPath) {
+                editorModels[currentPath].language = languageName;
+                saveLanguagePreference(currentPath, languageName);
+            }
+            updateMonacopilotLanguage(monaco, editor, languageName);
+        }).catch(error => {
+            console.error('Failed to load language:', error);
+        });
+    } else {
+        // Change to a built-in language
+        monaco.editor.setModelLanguage(editor.getModel(), languageName);
+        if (currentPath) {
+            editorModels[currentPath].language = languageName;
+            saveLanguagePreference(currentPath, languageName);
+        }
+        updateMonacopilotLanguage(monaco, editor, languageName);
+    }
+}
+
+// Change the editor theme
+function changeTheme(theme) {
+    monaco.editor.setTheme(theme);
+    updateThemeVariables(theme);
+    localStorage.setItem('selectedTheme', theme);
+}
+
+// Toggle live mode on/off
+function toggleLiveMode(isLive) {
+    isLiveMode = isLive;
+    if (isLiveMode) {
+        sendPendingChanges();
+    }
+}
+
+// Store the current editor state
+function storeEditorState() {
+    if (currentPath && editor.getModel()) {
+        editorModels[currentPath] = {
+            model: editor.getModel(),
+            viewState: editor.saveViewState(),
+            language: editor.getModel().getLanguageId()
+        };
+    }
+}
+
+// Restore a previously stored editor state
+function restoreEditorState(path) {
+    const state = editorModels[path];
+    editor.setModel(state.model);
+    editor.restoreViewState(state.viewState);
+    monaco.editor.setModelLanguage(state.model, state.language);
+    document.getElementById('language-select').value = state.language;
+}
+
+// Load a custom language file
+function loadLanguage(languageName, languageFile) {
+    return new Promise((resolve, reject) => {
+        var script = document.createElement('script');
+        script.src = languageFile;
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
+    });
+}
+
+// Save language preference for a specific file
+function saveLanguagePreference(path, language) {
+    let preferences = JSON.parse(localStorage.getItem('fileLanguagePreferences') || '{}');
+    preferences[path] = language;
+    localStorage.setItem('fileLanguagePreferences', JSON.stringify(preferences));
+}
+
+// Get language preference for a specific file
+function getLanguagePreference(path) {
+    let preferences = JSON.parse(localStorage.getItem('fileLanguagePreferences') || '{}');
+    return preferences[path] || null;
+}
+
+// Update the DATs dropdown in the UI
+function updateDatsDropdown(dats) {
+    var select = document.getElementById('dats-select');
+    select.innerHTML = '<option value="">Select DAT</option>';
+    dats.forEach(function (dat) {
+        var option = document.createElement('option');
+        option.value = dat.path;
+        option.textContent = dat.name;
+        select.appendChild(option);
+    });
+}
+
+// Update the OPs dropdown in the UI
+function updateOpsDropdown(ops) {
+    var select = document.getElementById('ops-select');
+    select.innerHTML = '<option value="">Select OP</option>';
+    ops.forEach(function (op) {
+        var option = document.createElement('option');
+        option.value = op.path;
+        option.textContent = op.name;
+        select.appendChild(option);
+    });
+}
+
+// Update OP parameters in the editor
+function updateOpParameters(path, parameters) {
+    if (currentPath === path) {
+        editor.setValue(JSON.stringify(parameters, null, 2));
+    }
+}
+
+// Send updated OP parameters to TouchDesigner
+function sendOpParameters(parameters, path) {
+    sendWebSocketMessage({
+        action: 'updateOpParameters',
+        parameters: JSON.parse(parameters),
+        path: path
+    });
+}
+
+// Export necessary functions and variables
+export { editor, currentPath, isLiveMode, isUpdating, pendingChanges, handleWebSocketMessage, handleUIEvent, updateOpsDropdown, updateDatsDropdown, updateOpParameters };
