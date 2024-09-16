@@ -1,0 +1,10 @@
+set path = `arg(execute("desk -l 3 $pane"),1)`
+set shortname = `opname("$path")`
+
+#tabcell $controlpanel/name/string rc 0 0 "$shortname"
+#tabcell $controlpanel/path/string rc 0 0 "$path"
+
+opparm $controlpanel/name/text1 value "$shortname"
+opparm $controlpanel/path/text1 value "$path"
+
+#controlpanel -K name/textfield
