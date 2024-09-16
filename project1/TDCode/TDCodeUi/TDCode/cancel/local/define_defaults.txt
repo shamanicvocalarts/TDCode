@@ -1,0 +1,11 @@
+label	Button
+displaylabel	1
+labelwidth	50
+font_size	8
+bold	0
+type	momentary
+groupdat	
+grouplabel	
+channelname	v1
+buttonlabel	Momentary
+sizetoparent	0
