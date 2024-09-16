@@ -1,0 +1,14 @@
+/project1/TDCode/createPane
+/project1/TDCode/languages/touchdesigner
+/project1/TDCode/languages/glsl
+/project1/TDCode/languages/python
+/project1/TDCode/languages/glsl
+/project1/TDCode/webBrowser/mtouchin1
+/project1/TDCode/webBrowser/pageSearch
+/project1/TDCode/webBrowser/info1
+/project1/TDCode/webBrowser/mtouchin1_callbacks
+/project1/TDCode/parexec1
+/project1/TDCode/execute1
+/project1/TDCode/createUI
+
+/project1/TDCode/TDCodeUi/TDCode/bookmarks/local/766932c0_25bc_11e0_adb4_0002a5d5c51b
