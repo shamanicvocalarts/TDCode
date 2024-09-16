@@ -1,0 +1,415 @@
+// GLSL language support for Monaco Editor
+monaco.languages.register({ id: 'glsl' });
+
+monaco.languages.setLanguageConfiguration('glsl', {
+    comments: {
+        lineComment: '//',
+        blockComment: ['/*', '*/']
+    },
+    brackets: [
+        ['{', '}'],
+        ['[', ']'],
+        ['(', ')']
+    ],
+    autoClosingPairs: [
+        { open: '{', close: '}' },
+        { open: '[', close: ']' },
+        { open: '(', close: ')' },
+        { open: '"', close: '"', notIn: ['string'] },
+        { open: "'", close: "'", notIn: ['string', 'comment'] }
+    ],
+    surroundingPairs: [
+        { open: '{', close: '}' },
+        { open: '[', close: ']' },
+        { open: '(', close: ')' },
+        { open: '"', close: '"' },
+        { open: "'", close: "'" }
+    ]
+});
+
+monaco.languages.setMonarchTokensProvider('glsl', {
+    defaultToken: '',
+    tokenPostfix: '.glsl',
+
+    keywords: [
+        'attribute', 'const', 'uniform', 'varying', 'buffer', 'shared', 'coherent', 'volatile', 'restrict', 'readonly', 'writeonly',
+        'atomic_uint', 'layout', 'centroid', 'flat', 'smooth', 'noperspective', 'patch', 'sample',
+        'break', 'continue', 'do', 'for', 'while', 'switch', 'case', 'default', 'if', 'else',
+        'subroutine', 'in', 'out', 'inout', 'float', 'double', 'int', 'void', 'bool', 'true', 'false',
+        'invariant', 'precise', 'discard', 'return', 'struct', 'precision', 'highp', 'mediump', 'lowp'
+    ],
+
+    typeKeywords: [
+        'float', 'double', 'int', 'void', 'bool', 'true', 'false',
+        'mat2', 'mat3', 'mat4', 'dmat2', 'dmat3', 'dmat4',
+        'mat2x2', 'mat2x3', 'mat2x4', 'dmat2x2', 'dmat2x3', 'dmat2x4',
+        'mat3x2', 'mat3x3', 'mat3x4', 'dmat3x2', 'dmat3x3', 'dmat3x4',
+        'mat4x2', 'mat4x3', 'mat4x4', 'dmat4x2', 'dmat4x3', 'dmat4x4',
+        'vec2', 'vec3', 'vec4', 'ivec2', 'ivec3', 'ivec4', 'bvec2', 'bvec3', 'bvec4',
+        'uint', 'uvec2', 'uvec3', 'uvec4', 'dvec2', 'dvec3', 'dvec4',
+        'sampler1D', 'sampler2D', 'sampler3D', 'samplerCube',
+        'sampler1DShadow', 'sampler2DShadow', 'samplerCubeShadow',
+        'sampler1DArray', 'sampler2DArray',
+        'sampler1DArrayShadow', 'sampler2DArrayShadow',
+        'isampler1D', 'isampler2D', 'isampler3D', 'isamplerCube',
+        'isampler1DArray', 'isampler2DArray',
+        'usampler1D', 'usampler2D', 'usampler3D', 'usamplerCube',
+        'usampler1DArray', 'usampler2DArray'
+    ],
+
+    operators: [
+        '=', '>', '<', '!', '~', '?', ':',
+        '==', '<=', '>=', '!=',
+        '&&', '||', '++', '--',
+        '+', '-', '*', '/', '&', '|', '^', '%', '<<',
+        '>>', '>>>', '+=', '-=', '*=', '/=', '&=', '|=',
+        '^=', '%=', '<<=', '>>=', '>>>='
+    ],
+
+    symbols:  /[=><!~?:&|+\-*\/\^%]+/,
+    escapes: /\\(?:[abfnrtv\\"']|x[0-9A-Fa-f]{1,4}|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8})/,
+
+    tokenizer: {
+        root: [
+            [/[a-zA-Z_]\w*/, { cases: { '@typeKeywords': 'type.identifier',
+                                        '@keywords': 'keyword',
+                                        '@default': 'identifier' } }],
+            { include: '@whitespace' },
+            [/[{}()\[\]]/, '@brackets'],
+            [/[<>](?!@symbols)/, '@brackets'],
+            [/@symbols/, { cases: { '@operators': 'operator',
+                                    '@default'  : '' } }],
+            [/\d*\.\d+([eE][\-+]?\d+)?/, 'number.float'],
+            [/0[xX][0-9a-fA-F]+/, 'number.hex'],
+            [/\d+/, 'number'],
+            [/[;,.]/, 'delimiter'],
+            [/"([^"\\]|\\.)*$/, 'string.invalid'],
+            [/"/, { token: 'string.quote', bracket: '@open', next: '@string' }]
+        ],
+
+        comment: [
+            [/[^\/*]+/, 'comment' ],
+            [/\/\*/,    'comment', '@push' ],
+            ["\\*/",    'comment', '@pop'  ],
+            [/[\/*]/,   'comment' ]
+        ],
+
+        string: [
+            [/[^\\"]+/, 'string'],
+            [/@escapes/, 'string.escape'],
+            [/\\./, 'string.escape.invalid'],
+            [/"/, { token: 'string.quote', bracket: '@close', next: '@pop' } ]
+        ],
+
+        whitespace: [
+            [/[ \t\r\n]+/, 'white'],
+            [/\/\*/,       'comment', '@comment' ],
+            [/\/\/.*$/,    'comment'],
+        ],
+    },
+});
+
+// Add GLSL-specific autocompletions
+monaco.languages.registerCompletionItemProvider('glsl', {
+    provideCompletionItems: function (model, position) {
+        var suggestions = [
+            {
+                label: 'void',
+                kind: monaco.languages.CompletionItemKind.Keyword,
+                insertText: 'void',
+                documentation: 'Specifies that the function returns no value'
+            },
+            {
+                label: 'vec2',
+                kind: monaco.languages.CompletionItemKind.Keyword,
+                insertText: 'vec2',
+                documentation: 'A 2-component vector of floating-point values'
+            },
+            {
+                label: 'vec3',
+                kind: monaco.languages.CompletionItemKind.Keyword,
+                insertText: 'vec3',
+                documentation: 'A 3-component vector of floating-point values'
+            },
+            {
+                label: 'vec4',
+                kind: monaco.languages.CompletionItemKind.Keyword,
+                insertText: 'vec4',
+                documentation: 'A 4-component vector of floating-point values'
+            },
+            {
+                label: 'mat4',
+                kind: monaco.languages.CompletionItemKind.Keyword,
+                insertText: 'mat4',
+                documentation: 'A 4x4 matrix of floating-point values'
+            },
+            {
+                label: 'float',
+                kind: monaco.languages.CompletionItemKind.Keyword,
+                insertText: 'float',
+                documentation: 'A single precision floating-point value'
+            },
+            {
+                label: 'int',
+                kind: monaco.languages.CompletionItemKind.Keyword,
+                insertText: 'int',
+                documentation: 'A signed integer value'
+            },
+            {
+                label: 'uniform',
+                kind: monaco.languages.CompletionItemKind.Keyword,
+                insertText: 'uniform',
+                documentation: 'Qualifier for variables that remain constant across all vertices/fragments'
+            },
+            {
+                label: 'attribute',
+                kind: monaco.languages.CompletionItemKind.Keyword,
+                insertText: 'attribute',
+                documentation: 'Qualifier for per-vertex input variables in vertex shaders'
+            },
+            {
+                label: 'varying',
+                kind: monaco.languages.CompletionItemKind.Keyword,
+                insertText: 'varying',
+                documentation: 'Qualifier for variables that are interpolated between vertex and fragment shaders'
+            },
+            {
+                label: 'TDDeform',
+                kind: monaco.languages.CompletionItemKind.Function,
+                insertText: 'TDDeform(${1:vec4 pos})',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'TouchDesigner function to deform a vertex position'
+            },
+            {
+                label: 'TDWorldToProj',
+                kind: monaco.languages.CompletionItemKind.Function,
+                insertText: 'TDWorldToProj(${1:vec4 v})',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'TouchDesigner function to convert world space to projection space'
+            },
+            {
+                label: 'TDOutputSwizzle',
+                kind: monaco.languages.CompletionItemKind.Function,
+                insertText: 'TDOutputSwizzle(${1:vec4 c})',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'TouchDesigner function to swizzle output color channels'
+            },
+            {
+                label: 'TDLightingPBR',
+                kind: monaco.languages.CompletionItemKind.Function,
+                insertText: 'TDLightingPBR(${1:int lightIndex}, ${2:vec3 diffuseColor}, ${3:vec3 specularColor}, ${4:vec3 worldSpacePos}, ${5:vec3 worldSpaceNormal}, ${6:float shadowStrength}, ${7:vec3 shadowColor}, ${8:vec3 vertToCamVec}, ${9:float roughness})',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'TouchDesigner function for Physically Based Rendering (PBR) lighting calculation'
+            },
+            {
+                label: 'TDEnvLightingPBR',
+                kind: monaco.languages.CompletionItemKind.Function,
+                insertText: 'TDEnvLightingPBR(${1:inout vec3 diffuseContrib}, ${2:inout vec3 specularContrib}, ${3:int lightIndex}, ${4:vec3 diffuseColor}, ${5:vec3 specularColor}, ${6:vec3 worldSpaceNormal}, ${7:vec3 vertToCamVec}, ${8:float roughness}, ${9:float ambientOcclusion})',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'TouchDesigner function for environment lighting in Physically Based Rendering (PBR)'
+            },
+            {
+                label: 'uTD',
+                kind: monaco.languages.CompletionItemKind.Variable,
+                insertText: 'uTD',
+                documentation: 'TouchDesigner uniform prefix for built-in uniforms'
+            },
+            {
+                label: 'sTD',
+                kind: monaco.languages.CompletionItemKind.Variable,
+                insertText: 'sTD',
+                documentation: 'TouchDesigner sampler prefix for texture samplers'
+            },
+            {
+                label: 'mTD',
+                kind: monaco.languages.CompletionItemKind.Variable,
+                insertText: 'mTD',
+                documentation: 'TouchDesigner image prefix for image objects'
+            }
+        ];
+
+        return { suggestions: suggestions };
+    }
+});
+
+// Provide hover information for GLSL keywords and functions
+monaco.languages.registerHoverProvider('glsl', {
+    provideHover: function(model, position) {
+        var word = model.getWordAtPosition(position);
+        if (word) {
+            var keyword = word.word;
+            if (keyword === 'TDDeform') {
+                return {
+                    range: new monaco.Range(
+                        position.lineNumber, word.startColumn,
+                        position.lineNumber, word.endColumn
+                    ),
+                    contents: [
+                        { value: 'Function: TDDeform' },
+                        { value: 'TouchDesigner function to deform a vertex position.' },
+                        { value: 'Usage: TDDeform(vec4 pos)' }
+                    ]
+                };
+            } else if (keyword === 'TDWorldToProj') {
+                return {
+                    range: new monaco.Range(
+                        position.lineNumber, word.startColumn,
+                        position.lineNumber, word.endColumn
+                    ),
+                    contents: [
+                        { value: 'Function: TDWorldToProj' },
+                        { value: 'TouchDesigner function to convert world space to projection space.' },
+                        { value: 'Usage: TDWorldToProj(vec4 v)' }
+                    ]
+                };
+            } else if (keyword === 'TDOutputSwizzle') {
+                return {
+                    range: new monaco.Range(
+                        position.lineNumber, word.startColumn,
+                        position.lineNumber, word.endColumn
+                    ),
+                    contents: [
+                        { value: 'Function: TDOutputSwizzle' },
+                        { value: 'TouchDesigner function to swizzle output color channels.' },
+                        { value: 'Usage: TDOutputSwizzle(vec4 c)' }
+                    ]
+                };
+            } else if (keyword === 'TDLightingPBR') {
+                return {
+                    range: new monaco.Range(
+                        position.lineNumber, word.startColumn,
+                        position.lineNumber, word.endColumn
+                    ),
+                    contents: [
+                        { value: 'Function: TDLightingPBR' },
+                        { value: 'TouchDesigner function for Physically Based Rendering (PBR) lighting calculation.' },
+                        { value: 'Usage: TDLightingPBR(int lightIndex, vec3 diffuseColor, vec3 specularColor, vec3 worldSpacePos, vec3 worldSpaceNormal, float shadowStrength, vec3 shadowColor, vec3 vertToCamVec, float roughness)' }
+                    ]
+                };
+                } else if (keyword === 'TDEnvLightingPBR') {
+                return {
+                    range: new monaco.Range(
+                        position.lineNumber, word.startColumn,
+                        position.lineNumber, word.endColumn
+                    ),
+                    contents: [
+                        { value: 'Function: TDEnvLightingPBR' },
+                        { value: 'TouchDesigner function for environment lighting in Physically Based Rendering (PBR).' },
+                        { value: 'Usage: TDEnvLightingPBR(inout vec3 diffuseContrib, inout vec3 specularContrib, int lightIndex, vec3 diffuseColor, vec3 specularColor, vec3 worldSpaceNormal, vec3 vertToCamVec, float roughness, float ambientOcclusion)' }
+                    ]
+                };
+            } else if (keyword === 'vec2' || keyword === 'vec3' || keyword === 'vec4') {
+                return {
+                    range: new monaco.Range(
+                        position.lineNumber, word.startColumn,
+                        position.lineNumber, word.endColumn
+                    ),
+                    contents: [
+                        { value: `Type: ${keyword}` },
+                        { value: `A ${keyword.slice(3)}-component vector of floating-point values` }
+                    ]
+                };
+            } else if (keyword === 'mat4') {
+                return {
+                    range: new monaco.Range(
+                        position.lineNumber, word.startColumn,
+                        position.lineNumber, word.endColumn
+                    ),
+                    contents: [
+                        { value: 'Type: mat4' },
+                        { value: 'A 4x4 matrix of floating-point values' }
+                    ]
+                };
+            } else if (keyword === 'float') {
+                return {
+                    range: new monaco.Range(
+                        position.lineNumber, word.startColumn,
+                        position.lineNumber, word.endColumn
+                    ),
+                    contents: [
+                        { value: 'Type: float' },
+                        { value: 'A single precision floating-point value' }
+                    ]
+                };
+            } else if (keyword === 'int') {
+                return {
+                    range: new monaco.Range(
+                        position.lineNumber, word.startColumn,
+                        position.lineNumber, word.endColumn
+                    ),
+                    contents: [
+                        { value: 'Type: int' },
+                        { value: 'A signed integer value' }
+                    ]
+                };
+            } else if (keyword === 'uniform') {
+                return {
+                    range: new monaco.Range(
+                        position.lineNumber, word.startColumn,
+                        position.lineNumber, word.endColumn
+                    ),
+                    contents: [
+                        { value: 'Qualifier: uniform' },
+                        { value: 'Qualifier for variables that remain constant across all vertices/fragments' }
+                    ]
+                };
+            } else if (keyword === 'attribute') {
+                return {
+                    range: new monaco.Range(
+                        position.lineNumber, word.startColumn,
+                        position.lineNumber, word.endColumn
+                    ),
+                    contents: [
+                        { value: 'Qualifier: attribute' },
+                        { value: 'Qualifier for per-vertex input variables in vertex shaders' }
+                    ]
+                };
+            } else if (keyword === 'varying') {
+                return {
+                    range: new monaco.Range(
+                        position.lineNumber, word.startColumn,
+                        position.lineNumber, word.endColumn
+                    ),
+                    contents: [
+                        { value: 'Qualifier: varying' },
+                        { value: 'Qualifier for variables that are interpolated between vertex and fragment shaders' }
+                    ]
+                };
+            } else if (keyword === 'uTD') {
+                return {
+                    range: new monaco.Range(
+                        position.lineNumber, word.startColumn,
+                        position.lineNumber, word.endColumn
+                    ),
+                    contents: [
+                        { value: 'Prefix: uTD' },
+                        { value: 'TouchDesigner uniform prefix for built-in uniforms' }
+                    ]
+                };
+            } else if (keyword === 'sTD') {
+                return {
+                    range: new monaco.Range(
+                        position.lineNumber, word.startColumn,
+                        position.lineNumber, word.endColumn
+                    ),
+                    contents: [
+                        { value: 'Prefix: sTD' },
+                        { value: 'TouchDesigner sampler prefix for texture samplers' }
+                    ]
+                };
+            } else if (keyword === 'mTD') {
+                return {
+                    range: new monaco.Range(
+                        position.lineNumber, word.startColumn,
+                        position.lineNumber, word.endColumn
+                    ),
+                    contents: [
+                        { value: 'Prefix: mTD' },
+                        { value: 'TouchDesigner image prefix for image objects' }
+                    ]
+                };
+            }
+        }
+        return null;
+    }
+});
