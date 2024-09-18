@@ -1,0 +1,7 @@
+0
+1
+1
+1
+$tearoff
+`1-$floating`
+`if(tabnr("local/panes")==2,0,1)`
