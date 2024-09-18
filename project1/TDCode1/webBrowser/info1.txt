@@ -1,0 +1,10 @@
+handle	touchdesigner_top_cef.43480.50	
+status	running	
+process_id	47792	
+cef	CEF 115.3	
+chromium	Chromium 115.0.5790.171	
+url	http://localhost:65434/	
+title	TD Code	
+http_status	200	
+error		
+error_code		
