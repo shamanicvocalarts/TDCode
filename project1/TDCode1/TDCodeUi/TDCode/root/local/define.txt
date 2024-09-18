@@ -1,0 +1,11 @@
+label	Button
+displaylabel	1
+labelwidth	50
+font_size	8
+symbol_size	14
+bold	0
+type	momentary
+channelname	v1
+sizetoparent	0
+fonttype	symbol
+buttonsymbol	down
