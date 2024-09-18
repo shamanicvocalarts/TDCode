@@ -1,0 +1,10 @@
+gadget_bg	gadget_bg
+label_text	buttontext_off
+label_text_disable	buttontext_disable
+field_text_on	buttontext_off
+field_text_onroll	buttontext_off
+field_text_disable	buttontext_disable
+field_bg_on	field_on
+field_bg_onroll	field_onroll
+field_bg_disable	field_disable
+field_border	gadget_bordera
