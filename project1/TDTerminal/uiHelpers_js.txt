@@ -1,0 +1,15 @@
+//uiHelpers.js
+
+const terminal = document.getElementById('terminal');
+
+export function log(message, type = 'output') {
+    const indentedMessage = message.replace(/ /g, '&nbsp;'); // Replace spaces with non-breaking spaces
+    const coloredMessage = `<span class="${type}">${indentedMessage}</span>`;
+    terminal.innerHTML += coloredMessage + '<br>';
+    terminal.scrollTop = terminal.scrollHeight;
+}
+
+
+export function clear() {
+    terminal.innerHTML = '';
+}
