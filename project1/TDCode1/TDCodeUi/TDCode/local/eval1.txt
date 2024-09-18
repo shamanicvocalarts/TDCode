@@ -1,0 +1,7 @@
+controlpanel	opfullpath("../..")
+pane	TDCode
+floating	0
+tearoff	1
+TOUCHVERSION	088
+TOUCHBUILD	49540
+TOUCHTIME	Tue May 19 11:53:11 2015
