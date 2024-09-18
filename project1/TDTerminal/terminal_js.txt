@@ -1,0 +1,326 @@
+//terminal.js
+
+import { Octokit } from "https://esm.sh/octokit";
+import { initAuth, handleAuthCallback, checkAuthToken, startAuth } from './auth.js';
+
+import { changeDirectory, listDirectory, getCurrentDirectory, createOperator, deleteOperator } from './fileOperations.js';
+import { gitAdd, gitRemove, gitStatus, gitPush, gitPull, listRepos, createRepo, enterRepo, listFiles, getCurrentRepo, getCurrentOwner, gitIgnore } from './gitOperations.js';
+import { executeNpmCommand } from './npmCommands.js';
+import { log, clear } from './uiHelpers.js';
+
+const PROXY_URL = 'https://td-code-github-authenticator-ShamanicArts.replit.app';
+const CLIENT_ID = 'Iv23lixsF7l3dZmE0moZ';
+let octokit;
+
+const terminal = document.getElementById('terminal');
+const input = document.getElementById('input');
+let currentRepo = null;
+let currentOwner = null;
+let currentDirectory = "/";
+let previousDirectory = '';
+
+let commandHistory = [];
+let currentCommandIndex = 0;
+
+async function initializeApp() {
+    const storedToken = localStorage.getItem('github_access_token');
+    const storedRepo = JSON.parse(localStorage.getItem('current_repo'));
+
+    if (storedToken) {
+        octokit = await initAuth(storedToken);
+        log('Previously stored authentication found. Ready to use GitHub API commands.', 'info');
+
+        if (storedRepo) {
+            await setCurrentOwner(storedRepo.owner);
+            await setCurrentRepo(storedRepo.repo);
+            log(`Connected to repository: ${storedRepo.owner}/${storedRepo.repo}`, 'success');
+        }
+    } else {
+        log('GitHub API Terminal initialized. Type "auth" to start the authentication process.', 'info');
+    }
+}
+
+function getHelpText(command, subcommand) {
+    if (command === 'git' && !subcommand) {
+        return `Git command help:
+Available git subcommands:
+- add: Stage file(s) for commit
+- rm: Remove file(s) from staged files
+- status: Show the current status of staged files
+- push: Push staged files to the current repository
+- pull: Pull changes from the current repository
+- listRepos: List all repositories for the authenticated user
+- createRepo: Create a new repository
+- enterRepo: Enter a specific repository
+- listFiles: List all files in the current repository
+- getCurrentRepo: Show the current repository
+- getCurrentOwner: Show the current repository owner
+Type "help git <subcommand>" for more information on a specific git subcommand.`;
+    }
+
+    if (command === 'git') {
+        switch (subcommand) {
+            case 'add':
+                return 'Stage file(s) for commit. If filePath is provided, stage a single file. If no filePath is provided, stage all files from the dats table.\nUsage: git add [filePath]';
+            case 'rm':
+                return 'Remove file(s) from staged files. If filePath is provided, remove a single file. If no filePath is provided, clear all staged files.\nUsage: git rm [filePath]';
+            case 'status':
+                return 'Show the current status of staged files.';
+            case 'push':
+                return 'Push staged files to the current repository. If no commit message is provided, a default message will be used.\nUsage: git push [commitMessage]';
+            case 'pull':
+                return 'Pull changes from the current repository and update the corresponding operators in TouchDesigner.';
+            case 'listRepos':
+                return 'List all repositories for the authenticated user.';
+            case 'createRepo':
+                return 'Create a new repository with the specified name.\nUsage: git createRepo <repoName>';
+            case 'enterRepo':
+                return 'Enter a specific repository by providing the owner and repo names.\nUsage: git enterRepo <owner> <repo>';
+            case 'git listFiles':
+                return 'List files in the current repository.\nUsage: git listFiles [-r|--recursive] [-d|--depth <number>]';
+            case 'getCurrentRepo':
+                return 'Show the current repository.';
+            case 'getCurrentOwner':
+                return 'Show the current repository owner.';
+            default:
+                return `Unknown git subcommand: ${subcommand}. Type "help git" to see the list of available git subcommands.`;
+        }
+    }
+
+    switch (command) {
+        case 'init':
+            return 'Initialize the app and check for stored authentication.';
+        case 'cd':
+            return 'Change the current directory.\nUsage: cd <path>\nExamples:\n  cd /project1\n  cd ..\n  cd subdir';
+        case 'ls':
+            return 'List the contents of the current directory.\nUsage: ls [-r|--recursive] [-d|--depth <number>]\n' +
+                '  -r, --recursive: List contents recursively\n' +
+                '  -d, --depth <number>: Specify the depth of recursion (default is unlimited)';
+        case 'create':
+            return 'Create a new operator in the current directory.\nUsage: create <operator_type> <name>\nExample: create container myContainer';
+        case 'delete':
+            return 'Delete an operator in the current directory.\nUsage: delete <name>\nExample: delete myContainer';
+        case 'auth':
+            return 'Start the GitHub authentication process. Follow the provided URL to authenticate and paste the callback URL back into the terminal.';
+        case 'checkAuth':
+            return 'Check the current authentication status.';
+        case 'gitIgnore':
+            return 'Set the git-ignore status for a specific operator path. Use "true" to ignore the operator, "false" to include it.\nUsage: gitIgnore <opPath> <true/false>';
+        case 'clear':
+            return 'Clear the terminal output.';
+        case 'help':
+            return 'Show help information for commands. Usage: help [command] [subcommand]';
+        default:
+            return 'Unknown command. Type "help" to see the list of available commands.';
+    }
+}
+
+input.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (currentCommandIndex > 0) {
+            currentCommandIndex--;
+            input.value = commandHistory[currentCommandIndex];
+        }
+    } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (currentCommandIndex < commandHistory.length - 1) {
+            currentCommandIndex++;
+            input.value = commandHistory[currentCommandIndex];
+        } else if (currentCommandIndex === commandHistory.length - 1) {
+            currentCommandIndex++;
+            input.value = '';
+        }
+    }
+});
+
+input.addEventListener('keypress', async (e) => {
+    if (e.key === 'Enter') {
+        const command = input.value.trim();
+        console.log(`Received command: "${command}"`);
+        log(`${currentDirectory}> ${command}`, 'command');
+        input.value = '';
+
+        commandHistory.push(command);
+        currentCommandIndex = commandHistory.length;
+
+        const args = command.match(/(?:[^\s"]+|"[^"]*")+/g);
+        const cmd = args.shift();
+
+        console.log(`Command: ${cmd}, Arguments: ${JSON.stringify(args)}`);
+
+        try {
+            if (command.startsWith('https://') && command.includes('code=')) {
+                await handleAuthCallback(command);
+            } else {
+                const [subcmd, ...subargs] = args;
+                console.log("subcmd", subcmd);
+                console.log("subargs", subargs);
+                console.log("cmd", cmd);
+
+                let commandType = 'output';
+
+                if (cmd === 'git') {
+                    commandType = 'git';
+                    switch (subcmd) {
+                        case 'add':
+                            await gitAdd(subargs.join(' ') || null);
+                            break;
+                        case 'rm':
+                            await gitRemove(subargs.join(' ') || null);
+                            break;
+                        case 'status':
+                            await gitStatus();
+                            break;
+                        case 'push':
+                            await gitPush(subargs.join(' ') || undefined);
+                            break;
+                        case 'pull':
+                            await gitPull();
+                            break;
+                        case 'listRepos':
+                            if (!octokit) {
+                                log('Error: Please authenticate first using the "auth" command.', 'error');
+                            } else {
+                                const repos = await listRepos();
+                                repos.forEach(repo => {
+                                    log(`${repo.name}: ${repo.html_url}`, 'output');
+                                });
+                            }
+                            break;
+                        case 'createRepo':
+                            await createRepo(subargs[0]);
+                            break;
+                        case 'enterRepo':
+                            await enterRepo(subargs[0], subargs[1]);
+                            break;
+                        case 'listFiles':
+                            const listFilesRecursive = subargs.includes('-r') || subargs.includes('--recursive');
+                            const listFilesDepthIndex = subargs.findIndex(arg => arg === '-d' || arg === '--depth');
+                            const listFilesDepth = listFilesDepthIndex !== -1 ? parseInt(subargs[listFilesDepthIndex + 1]) : Infinity;
+                            await listFiles('', listFilesRecursive, listFilesDepth);
+                            break;
+                        case 'getCurrentRepo':
+                            log(`Current repository: ${getCurrentRepo() || 'Not set'}`, 'output');
+                            break;
+                        case 'getCurrentOwner':
+                            log(`Current owner: ${getCurrentOwner() || 'Not set'}`, 'output');
+                            break;
+                        default:
+                            log(`Unknown git subcommand: ${subcmd}`, 'error');
+                            break;
+                    }
+                } else {
+                    switch (cmd) {
+                        case 'cd':
+                            commandType = 'cd';
+                            if (args.length === 0) {
+                                throw new Error("No path provided");
+                            } else {
+                                await changeDirectory(args.join(' '));
+                            }
+                            break;
+                        case 'ls':
+                            commandType = 'ls';
+                            const lsRecursive = args.includes('-r') || args.includes('--recursive');
+                            const lsDepthIndex = args.findIndex(arg => arg === '-d' || arg === '--depth');
+                            const lsDepth = lsDepthIndex !== -1 && args[lsDepthIndex + 1] ? parseInt(args[lsDepthIndex + 1]) : 0;
+                            await listDirectory(getCurrentDirectory(), lsRecursive, lsDepth);
+                            break;
+                        case 'create':
+                            commandType = 'create';
+                            if (args.length !== 2) {
+                                log("Usage: create <operator_type> <name>", 'error');
+                            } else {
+                                await createOperator(args[0], args[1]);
+                            }
+                            log(`Created operator: ${args[1]}`, 'create');
+                            break;
+                        case 'delete':
+                            commandType = 'delete';
+                            if (args.length !== 1) {
+                                log("Usage: delete <name>", 'error');
+                            } else {
+                                await deleteOperator(args[0]);
+                            }
+                            log(`Deleted operator: ${args[0]}`, 'delete');
+                            break;
+                        case 'npm':
+                            await executeNpmCommand(args.join(' '));
+                            break;
+                        case 'init':
+                            commandType = 'info';
+                            await initializeApp();
+                            log('Initialized app', 'info');
+                            break;
+                        case 'auth':
+                            commandType = 'auth';
+                            await startAuth();
+                            break;
+                        case 'checkAuth':
+                            commandType = 'checkAuth';
+                            await checkAuthToken();
+                            break;
+                        case 'gitIgnore':
+                            commandType = 'gitIgnore';
+                            if (args.length < 2) {
+                                log('Usage: gitIgnore <opPath> <true/false>', 'error');
+                            } else {
+                                const opPath = args.slice(0, -1).join(' ');
+                                const shouldIgnore = args[args.length - 1].toLowerCase() === 'true';
+                                await gitIgnore(opPath, shouldIgnore);
+                            }
+                            break;
+                        case 'clear':
+                            commandType = 'clear';
+                            clear();
+                            log('Cleared terminal output', 'clear');
+                            break;
+                        case 'help':
+                            commandType = 'help';
+                            if (subcmd === 'git' && args.length > 0) {
+                                const helpText = getHelpText('git', args[1]);
+                                log(helpText, 'output');
+                            } else if (subcmd) {
+                                const helpText = getHelpText(subcmd);
+                                log(helpText, 'output');
+                            } else {
+                                log('Available commands:', 'output');
+                                log('- init', 'output');
+                                log('- cd: Change directory', 'output');
+                                log('- ls: List directory contents', 'output');
+                                log('- create: Create a new operator', 'output');
+                                log('- delete: Delete an operator', 'output');
+                                log('- auth', 'output');
+                                log('- git', 'output');
+                                log('- git listRepos', 'output');
+                                log('- git createRepo', 'output');
+                                log('- git enterRepo', 'output');
+                                log('- git add', 'output');
+                                log('- git rm', 'output');
+                                log('- git status', 'output');
+                                log('- git push', 'output');
+                                log('- git pull', 'output');
+                                log('- git listFiles', 'output');
+                                log('- git getCurrentRepo', 'output');
+                                log('- git getCurrentOwner', 'output');
+                                log('- checkAuth', 'output');
+                                log('- gitIgnore', 'output');
+                                log('- clear', 'output');
+                                log('Type "help <command>" for more information on a specific command.', 'output');
+                            }
+                            break;
+                        default:
+                            log(`Unknown command: ${command}`, 'error');
+                            break;
+                    }
+                }
+            }
+        } catch (error) {
+            log(`Error: ${error.message}`, 'error');
+            console.error('Detailed error:', error);
+        }
+    }
+});
+
+initializeApp();
