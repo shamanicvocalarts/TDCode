@@ -1,0 +1,5 @@
+on	$colorexp/button_on
+onroll	$colorexp/button_onroll
+off	$colorexp/button_off
+offroll	$colorexp/button_offroll
+disable	$colorexp/button_disable
