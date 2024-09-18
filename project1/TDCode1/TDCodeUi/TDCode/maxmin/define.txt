@@ -1,0 +1,11 @@
+label	Button
+displaylabel	0
+labelwidth	50
+type	toggleup
+channelname	bstate
+fonttype	symbol
+buttonsymbol	max
+sizetoparent	1
+font_size	10
+symbol_size	11
+bold	0
