@@ -1,0 +1,979 @@
+// terminal.js
+
+
+
+import { Octokit } from "https://esm.sh/octokit";
+
+const PROXY_URL = 'https://td-code-github-authenticator-ShamanicArts.replit.app';
+const CLIENT_ID = 'Iv23lixsF7l3dZmE0moZ';
+let octokit;
+
+const terminal = document.getElementById('terminal');
+const input = document.getElementById('input');
+let currentRepo = null;
+let currentOwner = null;
+let currentDirectory = "/";
+let previousDirectory = ''; // Store the previous directory for `cd -`
+
+let commandHistory = [];
+let currentCommandIndex = 0;
+
+function log(message, type = 'output') {
+    const coloredMessage = `<span class="${type}">${message}</span>`;
+    terminal.innerHTML += coloredMessage + '<br>';
+    terminal.scrollTop = terminal.scrollHeight;
+}
+
+function clear() {
+    terminal.innerHTML = '';
+}
+
+async function initializeApp() {
+    const storedToken = localStorage.getItem('github_access_token');
+    const storedRepo = JSON.parse(localStorage.getItem('current_repo'));
+
+    if (storedToken) {
+        octokit = new Octokit({ auth: storedToken });
+        log('Previously stored authentication found. Ready to use GitHub API commands.', 'info');
+
+        if (storedRepo) {
+            currentOwner = storedRepo.owner;
+            currentRepo = storedRepo.repo;
+            log(`Connected to repository: ${currentOwner}/${currentRepo}`, 'success');
+        }
+    } else {
+        log('GitHub API Terminal initialized. Type "auth" to start the authentication process.', 'info');
+    }
+}
+
+async function changeDirectory(path) {
+    console.log(`changeDirectory called with path: ${path}`);
+
+    try {
+        if (!path || path.trim() === '') {
+            throw new Error("No path provided");
+        }
+
+        let newPath = path.startsWith('/') ? path : `${currentDirectory}/${path}`;
+        newPath = newPath.replace(/\/+/g, '/');  // Remove any double slashes
+
+        // Handle `..` to move up a directory
+        if (path === '..') {
+            if (currentDirectory === '/') {
+                throw new Error("Already at the root directory");
+            }
+            newPath = currentDirectory.split('/').slice(0, -1).join('/') || '/';
+        }
+
+        // Handle `cd -` to switch to the previous directory
+        if (path === '-') {
+            if (!previousDirectory) {
+                throw new Error("No previous directory to switch to");
+            }
+            newPath = previousDirectory;
+        }
+
+        console.log(`Attempting to change directory to: ${newPath}`);
+
+        const response = await fetch('/api/cd', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ path: newPath }),
+        });
+
+        if (!response.ok) {
+            throw new Error(`Server error: ${response.status}`);
+        }
+
+        const responseText = await response.text();
+        console.log(`Server response: ${responseText}`);
+
+        previousDirectory = currentDirectory; // Update previous directory
+        currentDirectory = responseText;
+        console.log(`Updated currentDirectory to: ${currentDirectory}`);
+        log(`Changed directory to: ${currentDirectory}`, 'cd'); // Light purple
+    } catch (error) {
+        console.error("CD Error:", error);
+        log(`Error: ${error.message}`, 'error');
+    }
+}
+
+async function listDirectory() {
+    try {
+        console.log(`Listing directory: ${currentDirectory}`);  // Debug log
+        const response = await fetch(`/api/ls?path=${encodeURIComponent(currentDirectory)}`);
+        if (response.ok) {
+            const items = await response.json();
+            log(`Contents of ${currentDirectory}:`, 'ls');
+            items.forEach(item => {
+                log(`  ${item.name} (${item.type})`, 'ls');
+            });
+        } else {
+            throw new Error(await response.text());
+        }
+    } catch (error) {
+        log(`Error: ${error.message}`, 'error');
+    }
+}
+
+async function createOperator(type, name) {
+    try {
+        const response = await fetch('/api/create_operator', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ parent_path: currentDirectory, type, name }),
+        });
+        if (response.ok) {
+            log(await response.text(), 'success');
+        } else {
+            throw new Error(await response.text());
+        }
+    } catch (error) {
+        log(`Error: ${error.message}`, 'error');
+    }
+}
+
+async function deleteOperator(name) {
+    try {
+        const response = await fetch('/api/delete_operator', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ parent_path: currentDirectory, name }),
+        });
+        if (response.ok) {
+            log(await response.text(), 'success');
+        } else {
+            throw new Error(await response.text());
+        }
+    } catch (error) {
+        log(`Error: ${error.message}`, 'error');
+    }
+}
+
+async function startAuth() {
+    const authUrl = `https://github.com/login/oauth/authorize?client_id=${CLIENT_ID}&scope=repo`;
+    log(`Please visit this URL to authenticate: ${authUrl}`, 'auth');
+    log('After authentication, you will be redirected. Please paste the full redirect URL here.', 'auth');
+}
+
+async function handleAuthCallback(callbackUrl) {
+    const url = new URL(callbackUrl);
+    const code = url.searchParams.get('code');
+
+    if (!code) {
+        log('Error: No code found in the callback URL', 'error');
+        return;
+    }
+
+    try {
+        log(`Attempting to exchange code: ${code}`, 'auth');
+        const response = await fetch(`${PROXY_URL}/proxy/github/oauth/access_token`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ code }),
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+        }
+
+        const data = await response.json();
+        console.log('Response data:', data);
+
+        if (data.access_token) {
+            octokit = new Octokit({ auth: data.access_token });
+            localStorage.setItem('github_access_token', data.access_token);
+            log('Authentication successful. You can now use GitHub API commands.', 'success');
+        } else if (data.error) {
+            throw new Error(`GitHub API Error: ${data.error_description || data.error}`);
+        } else {
+            throw new Error('Failed to obtain access token: Unexpected response format');
+        }
+    } catch (error) {
+        log(`Error during authentication: ${error.message}`, 'error');
+        console.error('Detailed error:', error);
+    }
+}
+
+async function checkAuthToken() {
+    const token = localStorage.getItem('github_access_token');
+    if (token) {
+        log(`Authentication token found: ${token.substring(0, 5)}...`, 'info');
+    } else {
+        log('No authentication token found in local storage.', 'info');
+    }
+}
+
+async function listRepos() {
+    if (!octokit) {
+        throw new Error('Please authenticate first using the "auth" command.');
+    }
+    try {
+        const { data } = await octokit.request('GET /user/repos', {
+            headers: {
+                'X-GitHub-Api-Version': '2022-11-28'
+            },
+            per_page: 100,
+            sort: 'created',
+            direction: 'desc'
+        });
+        return data;
+    } catch (error) {
+        console.error('Error listing repositories:', error);
+        throw error;
+    }
+}
+
+async function createRepo(repoName) {
+    if (!octokit) {
+        throw new Error('Please authenticate first using the "auth" command.');
+    }
+    try {
+        const { data } = await octokit.request('POST /user/repos', {
+            name: repoName,
+            description: 'This is a repo created via TDCode Github Integration',
+            private: false,
+            headers: {
+                'X-GitHub-Api-Version': '2022-11-28'
+            }
+        });
+        log(`Repository created: ${data.html_url}`, 'success');
+        return data;
+    } catch (error) {
+        log(`Error creating repository: ${error.message}`, 'error');
+        throw error;
+    }
+}
+
+async function enterRepo(owner, repo) {
+    if (!octokit) {
+        throw new Error('Please authenticate first using the "auth" command.');
+    }
+    try {
+        const { data } = await octokit.request('GET /repos/{owner}/{repo}', {
+            owner: owner,
+            repo: repo,
+            headers: {
+                'X-GitHub-Api-Version': '2022-11-28'
+            }
+        });
+        currentRepo = repo;
+        currentOwner = owner;
+        await storeCurrentRepo(owner, repo);
+        log(`Entered repository: ${data.full_name}`, 'success');
+    } catch (error) {
+        log(`Error entering repository: ${error.message}`, 'error');
+        console.error('Detailed error:', error);
+        throw error;
+    }
+}
+
+async function createFile(path) {
+    if (!currentRepo || !currentOwner) {
+        throw new Error('Please enter a repository first using the "enterRepo" command.');
+    }
+    try {
+        const content = await fetchTestDocContent();
+        const { data } = await octokit.request('PUT /repos/{owner}/{repo}/contents/{path}', {
+            owner: currentOwner,
+            repo: currentRepo,
+            path: path,
+            message: 'Create file via TDCode',
+            content: btoa(content),
+            headers: {
+                'X-GitHub-Api-Version': '2022-11-28'
+            }
+        });
+        log(`File created: ${data.content.html_url}`, 'success');
+    } catch (error) {
+        log(`Error creating file: ${error.message}`, 'error');
+        throw error;
+    }
+}
+
+async function deleteFile(path) {
+    if (!currentRepo || !currentOwner) {
+        throw new Error('Please enter a repository first using the "enterRepo" command.');
+    }
+    try {
+        // First, get the file to retrieve its SHA
+        const { data: fileData } = await octokit.request('GET /repos/{owner}/{repo}/contents/{path}', {
+            owner: currentOwner,
+            repo: currentRepo,
+            path: path,
+            headers: {
+                'X-GitHub-Api-Version': '2022-11-28'
+            }
+        });
+
+        // Now delete the file
+        const { data } = await octokit.request('DELETE /repos/{owner}/{repo}/contents/{path}', {
+            owner: currentOwner,
+            repo: currentRepo,
+            path: path,
+            message: 'Delete file via TDCode',
+            sha: fileData.sha,
+            headers: {
+                'X-GitHub-Api-Version': '2022-11-28'
+            }
+        });
+        log(`File deleted: ${path}`, 'success');
+    } catch (error) {
+        log(`Error deleting file: ${error.message}`, 'error');
+        throw error;
+    }
+}
+
+let stagedFiles = JSON.parse(localStorage.getItem('staged_files')) || [];
+
+async function gitAdd(filePath) {
+    if (filePath) {
+        // Single file behavior
+        let absolutePath = filePath;
+        if (filePath.startsWith('op(')) {
+            // Extract the operator path from op("...").text format
+            absolutePath = filePath.slice(4, -7);  // Remove 'op("' and '").text'
+        }
+        // Ensure we have the absolute path
+        const response = await fetch(`/api/absolute_path?path=${encodeURIComponent(absolutePath)}`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        absolutePath = await response.text();
+
+        // Check if the file is git-ignored
+        const ignoreResponse = await fetch(`/api/is_git_ignored?path=${encodeURIComponent(absolutePath)}`);
+        if (!ignoreResponse.ok) {
+            throw new Error(`HTTP error! status: ${ignoreResponse.status}`);
+        }
+        const isIgnored = await ignoreResponse.text() === 'true';
+
+        if (isIgnored) {
+            log(`${absolutePath} is git-ignored. Skipping.`, 'warning');
+        } else if (!stagedFiles.includes(absolutePath)) {
+            stagedFiles.push(absolutePath);
+            localStorage.setItem('staged_files', JSON.stringify(stagedFiles));
+            log(`Added ${absolutePath} to staged files.`, 'success');
+        } else {
+            log(`${absolutePath} is already staged.`, 'info');
+        }
+    } else {
+        // Multiple files behavior (via dats)
+        try {
+            const response = await fetch('/api/dats');
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const dats = await response.json();
+            let addedCount = 0;
+            for (const dat of dats) {
+                const ignoreResponse = await fetch(`/api/is_git_ignored?path=${encodeURIComponent(dat.path)}`);
+                if (!ignoreResponse.ok) {
+                    throw new Error(`HTTP error! status: ${ignoreResponse.status}`);
+                }
+                const isIgnored = await ignoreResponse.text() === 'true';
+
+                if (!isIgnored && !stagedFiles.includes(dat.path)) {
+                    stagedFiles.push(dat.path);
+                    addedCount++;
+                }
+            }
+            localStorage.setItem('staged_files', JSON.stringify(stagedFiles));
+            log(`Added ${addedCount} new file(s) to staged files.`, 'success');
+        } catch (error) {
+            log(`Error fetching dats: ${error.message}`, 'error');
+            console.error('Detailed error:', error);
+        }
+    }
+}
+
+async function gitRemove(filePath) {
+    if (filePath) {
+        const index = stagedFiles.indexOf(filePath);
+        if (index > -1) {
+            stagedFiles.splice(index, 1);
+            localStorage.setItem('staged_files', JSON.stringify(stagedFiles));
+            log(`Removed ${filePath} from staged files.`, 'success');
+        } else {
+            log(`${filePath} is not in staged files.`, 'info');
+        }
+    } else {
+        // Clear all staged files
+        stagedFiles = [];
+        localStorage.setItem('staged_files', JSON.stringify(stagedFiles));
+        log('Cleared all staged files.', 'success');
+    }
+}
+
+async function gitStatus() {
+    log("Staged files:", 'info');
+    stagedFiles.forEach(file => log(`  ${file}`, 'info'));
+}
+
+async function gitPull() {
+    if (!getCurrentRepo() || !getCurrentOwner()) {
+        throw new Error('Please enter a repository first using the "enterRepo" command.');
+    }
+    try {
+        async function processDirectory(path) {
+            console.log(`Processing directory: ${path}`);
+            const { data: dirContents } = await octokit.request('GET /repos/{owner}/{repo}/contents/{path}', {
+                owner: getCurrentOwner(),
+                repo: getCurrentRepo(),
+                path: path,
+                headers: { 'X-GitHub-Api-Version': '2022-11-28' }
+            });
+
+            for (const item of dirContents) {
+                if (item.type === "file" && item.name.endsWith('.txt')) {
+                    console.log(`Processing file: ${item.path}`);
+                    const opPath = '/' + item.path.slice(0, -4);  // Add leading '/' and remove '.txt'
+                    // Check if the file is git-ignored using the dats table
+                    const ignoreResponse = await fetch(`/api/is_git_ignored?path=${encodeURIComponent(opPath)}`);
+                    if (!ignoreResponse.ok) {
+                        throw new Error(`HTTP error! status: ${ignoreResponse.status}`);
+                    }
+                    const isIgnored = await ignoreResponse.text() === 'true';
+
+                    if (isIgnored) {
+                        log(`Skipping git-ignored file: ${opPath}`, 'warning');
+                        continue;
+                    }
+
+                    const fileContent = await octokit.request('GET /repos/{owner}/{repo}/contents/{path}', {
+                        owner: getCurrentOwner(),
+                        repo: getCurrentRepo(),
+                        path: item.path,
+                        headers: { 'X-GitHub-Api-Version': '2022-11-28' }
+                    });
+                    const content = atob(fileContent.data.content);
+
+                    try {
+                        await updateFileContent(opPath, content);
+                        log(`Pulled and updated: ${opPath}`, 'success');
+                    } catch (error) {
+                        log(`Error updating ${opPath}: ${error.message}`, 'error');
+                    }
+                } else if (item.type === "dir") {
+                    await processDirectory(item.path);
+                }
+            }
+        }
+
+        await processDirectory('');
+        log("Pull operation completed. Check log for details on updated files.", 'success');
+    } catch (error) {
+        log(`Error during git pull: ${error.message}`, 'error');
+        console.error('Detailed error:', error);
+        throw error;
+    }
+}
+
+async function gitPush(commitMessage = "Update via TDCode gitPush") {
+    if (!getCurrentRepo() || !getCurrentOwner()) {
+        throw new Error('Please enter a repository first using the "enterRepo" command.');
+    }
+    if (stagedFiles.length === 0) {
+        throw new Error('No files staged for commit. Use gitAdd to stage files.');
+    }
+    try {
+        for (const filePath of stagedFiles) {
+            try {
+                const response = await fetch(`/api/file_content?path=${encodeURIComponent(filePath)}`);
+                if (response.status === 404 && response.statusText.includes('git-ignored')) {
+                    log(`Skipping git-ignored file: ${filePath}`, 'warning');
+                    continue;
+                }
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const content = await response.text();
+                const githubPath = filePath.slice(1) + '.txt';  // Remove leading '/' and add '.txt'
+                log(`Pushing file: ${filePath} as ${githubPath}`, 'info');
+
+                // Check if the directory exists, create it if it doesn't
+                const dirPath = githubPath.split('/').slice(0, -1).join('/');
+                if (dirPath) {
+                    try {
+                        await octokit.request('GET /repos/{owner}/{repo}/contents/{path}', {
+                            owner: getCurrentOwner(),
+                            repo: getCurrentRepo(),
+                            path: dirPath,
+                            headers: { 'X-GitHub-Api-Version': '2022-11-28' }
+                        });
+                    } catch (error) {
+                        if (error.status === 404) {
+                            // Directory doesn't exist, create it
+                            await octokit.request('PUT /repos/{owner}/{repo}/contents/{path}', {
+                                owner: getCurrentOwner(),
+                                repo: getCurrentRepo(),
+                                path: dirPath + '/.gitkeep',
+                                message: 'Create directory',
+                                content: btoa(''),
+                                headers: { 'X-GitHub-Api-Version': '2022-11-28' }
+                            });
+                        } else {
+                            throw error;
+                        }
+                    }
+                }
+
+                // Now push the file
+                let sha;
+                try {
+                    const { data: fileData } = await octokit.request('GET /repos/{owner}/{repo}/contents/{path}', {
+                        owner: getCurrentOwner(),
+                        repo: getCurrentRepo(),
+                        path: githubPath,
+                        headers: { 'X-GitHub-Api-Version': '2022-11-28' }
+                    });
+                    sha = fileData.sha;
+                } catch (error) {
+                    if (error.status !== 404) throw error;
+                    // If we get a 404, it means the file doesn't exist yet, which is fine
+                }
+
+                const { data } = await octokit.request('PUT /repos/{owner}/{repo}/contents/{path}', {
+                    owner: getCurrentOwner(),
+                    repo: getCurrentRepo(),
+                    path: githubPath,
+                    message: commitMessage,
+                    content: btoa(content),
+                    sha: sha,
+                    headers: { 'X-GitHub-Api-Version': '2022-11-28' }
+                });
+                log(`Push successful for ${filePath}: ${data.content.html_url}`, 'success');
+            } catch (error) {
+                log(`Error processing ${filePath}: ${error.message}`, 'error');
+            }
+        }
+        log(`Commit message: "${commitMessage}"`, 'info');
+        stagedFiles = [];
+        localStorage.setItem('staged_files', JSON.stringify(stagedFiles));
+    } catch (error) {
+        log(`Error during git push: ${error.message}`, 'error');
+        console.error('Detailed error:', error);
+        throw error;
+    }
+}
+
+function githubPathToOpPath(githubPath) {
+    // Remove the '.txt' extension and add the 'project1' prefix
+    return githubPath.slice(0, -4);
+}
+
+async function listFiles() {
+    if (!currentRepo || !currentOwner) {
+        throw new Error('Please enter a repository first using the "enterRepo" command.');
+    }
+    try {
+        const { data } = await octokit.request('GET /repos/{owner}/{repo}/contents', {
+            owner: currentOwner,
+            repo: currentRepo,
+            headers: {
+                'X-GitHub-Api-Version': '2022-11-28'
+            }
+        });
+        log("Files in the repository:", 'info');
+        data.forEach(file => {
+            log(`- ${file.path}`, 'info');
+        });
+    } catch (error) {
+        log(`Error listing files: ${error.message}`, 'error');
+        console.error('Detailed error:', error);
+        throw error;
+    }
+}
+
+async function fetchFileContent(filePath) {
+    try {
+        const response = await fetch(`/api/file_content?path=${encodeURIComponent(filePath)}`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return await response.text();
+    } catch (error) {
+        console.error(`Error fetching content for ${filePath}:`, error);
+        throw error;
+    }
+}
+
+async function updateFileContent(filePath, content) {
+    try {
+        console.log(`Updating file: ${filePath}`);
+        const response = await fetch('/api/file_content', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ path: filePath, content: content })
+        });
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+        }
+        const result = await response.text();
+        console.log('Update result:', result);
+    } catch (error) {
+        console.error(`Error updating content for ${filePath}:`, error);
+        throw error;
+    }
+}
+
+async function setCurrentRepo(repo) {
+    await fetch('/api/current_repo', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'text/plain',
+        },
+        body: repo
+    });
+}
+
+async function setCurrentOwner(owner) {
+    await fetch('/api/current_owner', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'text/plain',
+        },
+        body: owner
+    });
+}
+
+async function storeCurrentRepo(owner, repo) {
+    localStorage.setItem('current_repo', JSON.stringify({ owner, repo }));
+    log(`Stored current repo: ${owner}/${repo}`, 'success');
+}
+
+function getCurrentRepo() {
+    return currentRepo;
+}
+
+function getCurrentOwner() {
+    return currentOwner;
+}
+
+async function gitIgnore(filePath, shouldIgnore) {
+    try {
+        let absolutePath = filePath;
+        if (filePath.startsWith('op(')) {
+            // Extract the operator path from op("...").text format
+            absolutePath = filePath.slice(4, -7);  // Remove 'op("' and '").text'
+        }
+        console.log(`Attempting to gitIgnore path: ${absolutePath}`);  // Debug log
+
+        const ignoreResponse = await fetch('/api/git_ignore', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ path: absolutePath, ignore: shouldIgnore })
+        });
+        const result = await ignoreResponse.text();
+        if (!ignoreResponse.ok) {
+            throw new Error(`HTTP error! status: ${ignoreResponse.status}, message: ${result}`);
+        }
+        log(result, 'success');
+        log(`Git-ignore status updated for ${absolutePath}. Please check the operator's tags to confirm.`, 'info');
+    } catch (error) {
+        log(`Error updating git-ignore status: ${error.message}`, 'error');
+        console.error('Detailed error:', error);
+    }
+}
+
+function getHelpText(command, subcommand) {
+    if (command === 'git' && !subcommand) {
+        return `Git command help:
+Available git subcommands:
+- add: Stage file(s) for commit
+- rm: Remove file(s) from staged files
+- status: Show the current status of staged files
+- push: Push staged files to the current repository
+- pull: Pull changes from the current repository
+- listRepos: List all repositories for the authenticated user
+- createRepo: Create a new repository
+- enterRepo: Enter a specific repository
+- listFiles: List all files in the current repository
+- getCurrentRepo: Show the current repository
+- getCurrentOwner: Show the current repository owner
+Type "help git <subcommand>" for more information on a specific git subcommand.`;
+    }
+
+    if (command === 'git') {
+        console.log(command, subcommand)
+        switch (subcommand) {
+            case 'add':
+                return 'Stage file(s) for commit. If filePath is provided, stage a single file. If no filePath is provided, stage all files from the dats table.\nUsage: git add [filePath]';
+            case 'rm':
+                return 'Remove file(s) from staged files. If filePath is provided, remove a single file. If no filePath is provided, clear all staged files.\nUsage: git rm [filePath]';
+            case 'status':
+                return 'Show the current status of staged files.';
+            case 'push':
+                return 'Push staged files to the current repository. If no commit message is provided, a default message will be used.\nUsage: git push [commitMessage]';
+            case 'pull':
+                return 'Pull changes from the current repository and update the corresponding operators in TouchDesigner.';
+            case 'listRepos':
+                return 'List all repositories for the authenticated user.';
+            case 'createRepo':
+                return 'Create a new repository with the specified name.\nUsage: git createRepo <repoName>';
+            case 'enterRepo':
+                return 'Enter a specific repository by providing the owner and repo names.\nUsage: git enterRepo <owner> <repo>';
+            case 'listFiles':
+                return 'List all files in the current repository.';
+            case 'getCurrentRepo':
+                return 'Show the current repository.';
+            case 'getCurrentOwner':
+                return 'Show the current repository owner.';
+            default:
+                return `Unknown git subcommand: ${subcommand}. Type "help git" to see the list of available git subcommands.`;
+        }
+    }
+
+    switch (command) {
+        case 'init':
+            return 'Initialize the app and check for stored authentication.';
+        case 'cd':
+            return 'Change the current directory.\nUsage: cd <path>\nExamples:\n  cd /project1\n  cd ..\n  cd subdir';
+        case 'ls':
+            return 'List the contents of the current directory.\nUsage: ls';
+        case 'create':
+            return 'Create a new operator in the current directory.\nUsage: create <operator_type> <name>\nExample: create container myContainer';
+        case 'delete':
+            return 'Delete an operator in the current directory.\nUsage: delete <name>\nExample: delete myContainer';
+        case 'auth':
+            return 'Start the GitHub authentication process. Follow the provided URL to authenticate and paste the callback URL back into the terminal.';
+        case 'checkAuth':
+            return 'Check the current authentication status.';
+        case 'gitIgnore':
+            return 'Set the git-ignore status for a specific operator path. Use "true" to ignore the operator, "false" to include it.\nUsage: gitIgnore <opPath> <true/false>';
+        case 'clear':
+            return 'Clear the terminal output.';
+        case 'help':
+            return 'Show help information for commands. Usage: help [command] [subcommand]';
+        default:
+            return 'Unknown command. Type "help" to see the list of available commands.';
+    }
+}
+
+input.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (currentCommandIndex > 0) {
+            currentCommandIndex--;
+            input.value = commandHistory[currentCommandIndex];
+        }
+    } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (currentCommandIndex < commandHistory.length - 1) {
+            currentCommandIndex++;
+            input.value = commandHistory[currentCommandIndex];
+        } else if (currentCommandIndex === commandHistory.length - 1) {
+            currentCommandIndex++;
+            input.value = '';
+        }
+    }
+});
+
+input.addEventListener('keypress', async (e) => {
+    if (e.key === 'Enter') {
+        const command = input.value.trim();
+        console.log(`Received command: "${command}"`);
+        log(`${currentDirectory}> ${command}`, 'command'); // Command is light blue
+        input.value = '';
+
+        // Add the command to the history
+        commandHistory.push(command);
+        currentCommandIndex = commandHistory.length;
+
+        // Use a regular expression to split the command string into arguments
+        const args = command.match(/(?:[^\s"]+|"[^"]*")+/g);
+        const cmd = args.shift();
+
+        console.log(`Command: ${cmd}, Arguments: ${JSON.stringify(args)}`);
+
+        try {
+            if (command.startsWith('https://') && command.includes('code=')) {
+                await handleAuthCallback(command);
+            } else {
+                const [subcmd, ...subargs] = args;
+                console.log("subcmd", subcmd)
+                console.log("subargs", subargs)
+                console.log("cmd", cmd)
+
+                let commandType = 'output'; // Default to output color
+
+                if (cmd === 'git') {
+                    commandType = 'git';
+                    switch (subcmd) {
+                        case 'add':
+                            await gitAdd(subargs.join(' ') || null);
+                            break;
+                        case 'rm':
+                            await gitRemove(subargs.join(' ') || null);
+                            break;
+                        case 'status':
+                            await gitStatus();
+                            break;
+                        case 'push':
+                            await gitPush(subargs.join(' ') || undefined);
+                            break;
+                        case 'pull':
+                            await gitPull();
+                            break;
+                        case 'listRepos':
+                            if (!octokit) {
+                                log('Error: Please authenticate first using the "auth" command.', 'error');
+                            } else {
+                                const repos = await listRepos();
+                                repos.forEach(repo => {
+                                    log(`${repo.name}: ${repo.html_url}`, 'output');
+                                });
+                            }
+                            break;
+                        case 'createRepo':
+                            await createRepo(subargs[0]);
+                            break;
+                        case 'enterRepo':
+                            await enterRepo(subargs[0], subargs[1]);
+                            break;
+                        case 'listFiles':
+                            await listFiles();
+                            break;
+                        case 'getCurrentRepo':
+                            log(`Current repository: ${getCurrentRepo() || 'Not set'}`, 'output');
+                            break;
+                        case 'getCurrentOwner':
+                            log(`Current owner: ${getCurrentOwner() || 'Not set'}`, 'output');
+                            break;
+                        default:
+                            log(`Unknown git subcommand: ${subcmd}`, 'error');
+                            break;
+                    }
+                } else {
+                    switch (cmd) {
+                        case 'cd':
+                            commandType = 'cd';
+                            if (args.length === 0) {
+                                throw new Error("No path provided");
+                            } else {
+                                await changeDirectory(args.join(' '));
+                            }
+
+                            break;
+                        case 'ls':
+                            commandType = 'ls';
+                            await listDirectory();
+                            
+                            break;
+                        case 'create':
+                            commandType = 'create';
+                            if (args.length !== 2) {
+                                log("Usage: create <operator_type> <name>", 'error');
+                            } else {
+                                await createOperator(args[0], args[1]);
+                            }
+                            log(`Created operator: ${args[1]}`, 'create'); // Light green
+                            break;
+                        case 'delete':
+                            commandType = 'delete';
+                            if (args.length !== 1) {
+                                log("Usage: delete <name>", 'error');
+                            } else {
+                                await deleteOperator(args[0]);
+                            }
+                            log(`Deleted operator: ${args[0]}`, 'delete'); // Light cyan
+                            break;
+                        case 'init':
+                            commandType = 'info';
+                            await initializeApp();
+                            log('Initialized app', 'info'); // Light cyan
+                            break;
+                        case 'auth':
+                            commandType = 'auth';
+                            await startAuth();
+
+                            break;
+                        case 'checkAuth':
+                            commandType = 'checkAuth';
+                            await checkAuthToken();
+
+                            break;
+                        case 'gitIgnore':
+                            commandType = 'gitIgnore';
+                            if (args.length < 2) {
+                                log('Usage: gitIgnore <opPath> <true/false>', 'error');
+                            } else {
+                                const opPath = args.slice(0, -1).join(' ');  // Join all args except the last one
+                                const shouldIgnore = args[args.length - 1].toLowerCase() === 'true';
+                                await gitIgnore(opPath, shouldIgnore);
+                            }
+
+                            break;
+                        case 'clear':
+                            commandType = 'clear';
+                            clear();
+                            log('Cleared terminal output', 'clear'); // Light orange
+                            break;
+                        case 'help':
+                            commandType = 'help';
+                            if (subcmd === 'git' && args.length > 0) {
+                                // Handle help for git subcommands
+                                const helpText = getHelpText('git', args[1]);
+                                log(helpText, 'output');
+                            } else if (subcmd) {
+                                // Handle help for main commands
+                                const helpText = getHelpText(subcmd);
+                                log(helpText, 'output');
+                            } else {
+                                log('Available commands:', 'output');
+                                log('- init', 'output');
+                                log('- cd: Change directory', 'output');
+                                log('- ls: List directory contents', 'output');
+                                log('- create: Create a new operator', 'output');
+                                log('- delete: Delete an operator', 'output');
+                                log('- auth', 'output');
+                                log('- git', 'output');
+                                log('- git listRepos', 'output');
+                                log('- git createRepo', 'output');
+                                log('- git enterRepo', 'output');
+                                log('- git add', 'output');
+                                log('- git rm', 'output');
+                                log('- git status', 'output');
+                                log('- git push', 'output');
+                                log('- git pull', 'output');
+                                log('- git listFiles', 'output');
+                                log('- git getCurrentRepo', 'output');
+                                log('- git getCurrentOwner', 'output');
+                                log('- checkAuth', 'output');
+                                log('- gitIgnore', 'output');
+                                log('- clear', 'output');
+                                log('Type "help <command>" for more information on a specific command.', 'output');
+                            }
+
+                            break;
+                        default:
+                            log(`Unknown command: ${command}`, 'error');
+                            break;
+                    }
+                }
+            }
+        } catch (error) {
+            log(`Error: ${error.message}`, 'error');
+            console.error('Detailed error:', error);
+        }
+    }
+});
+
+
+
+// Initialize app on load
+initializeApp();
