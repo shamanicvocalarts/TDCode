@@ -5,7 +5,7 @@ import { setupWebSocket, sendWebSocketMessage, sendContentToServer, sendPendingC
 import { setupUIEventListeners } from './ui.js';
 import { log, saveUndoHistory, loadUndoHistory, updateThemeVariables } from './utils.js';
 
-import { registerCopilot } from "https://unpkg.com/monacopilot@0.9.30/build/index.mjs";
+import { registerCopilot } from "https://unpkg.com/monacopilot@0.9.31/build/index.mjs";
 
 let editor; // The main Monaco editor instance
 let editorModels = {}; // Object to store editor models for different files
@@ -46,6 +46,7 @@ function createEditor() {
         useExternalContext: false,
         useTechnologies: true,
         useCustomPrompt: true,
+        
         //siteUrl: window.location.origin,
         //siteName: 'TDCode'
     });
@@ -132,7 +133,7 @@ function handleWebSocketMessage(data) {
 }
 
 function updateCopilotConfig(config) {
-    console.log("Updating Copilot config:", config);
+    ///console.log("Updating Copilot config:", config);
     if (config.isEnabled) {
         enableMonacopilot(monaco, editor, config);
     } else {
@@ -141,12 +142,16 @@ function updateCopilotConfig(config) {
 }
 
 function updateCopilotStatus(isEnabled) {
-    console.log("Updating copilot status:", isEnabled);
+    ///console.log("Updating copilot status:", isEnabled);
     try {
         if (isEnabled) {
             enableMonacopilot(monaco, editor);
         } else {
             disableMonacopilot(monaco, editor);
+        }
+        // Update TouchDesigner extension Copilot mode
+        if (touchDesignerExtension && touchDesignerExtension.setCopilotMode) {
+            touchDesignerExtension.setCopilotMode(isEnabled);
         }
     } catch (error) {
         console.error("Error updating Copilot status:", error);
