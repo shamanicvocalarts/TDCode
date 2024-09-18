@@ -1,16 +1,18 @@
 //monacopilot_config.js
 
-import { Copilot, registerCopilot } from 'https://unpkg.com/monacopilot@0.9.30/build/index.mjs';
+import { Copilot, registerCopilot } from 'https://unpkg.com/monacopilot@0.9.31/build/index.mjs';
 
 let copilotInstance = null;
 let isCopilotEnabled = true;
 let currentConfig = {};
+let touchDesignerExtension;
+
 
 function safeDispose(instance) {
     if (instance && typeof instance.dispose === 'function') {
         instance.dispose();
     } else {
-        console.log("No dispose method available, performing alternative cleanup");
+        //console.log("No dispose method available, performing alternative cleanup");
         // Perform alternative cleanup if necessary
         instance = null;
     }
@@ -35,55 +37,56 @@ async function getApiKey(provider) {
 
 
 export async function initializeMonacopilot(monaco, editor, language, options = {}) {
-    console.log("Initializing Monacopilot with options:", options);
+    //console.log("Initializing Monacopilot with options:", JSON.stringify(options, null, 2));
 
     try {
-        const provider = options.provider || 'groq';
-        console.log(`Using provider: ${provider}`);
+        const provider = options.provider || 'openrouter';
+        //console.log(`Using provider: ${provider}`);
         const { key } = await getApiKey(provider);
-        console.log("Received API key:", key ? "REDACTED" : "undefined");
+        //console.log("Received API key:", key ? "REDACTED" : "undefined");
 
-        let copilotConfig;
-        if (provider === 'openrouter') {
-            copilotConfig = setupOpenRouter(key, options);
-        } else {
-            copilotConfig = {
-                model: options.model || 'llama-3-70b',
-                provider: provider
-            };
-        }
-        console.log("Copilot config:", copilotConfig);
+        let copilotConfig = setupOpenRouter(key, options);
+        //console.log("Copilot config:", JSON.stringify(copilotConfig, null, 2));
 
-        // Create a new Copilot instance with the correct API key and config
         copilotInstance = new Copilot(key, copilotConfig);
+
+        touchDesignerExtension = await new Promise((resolve) => {
+            require(['touchdesigner'], (td) => {
+                //console.log("TouchDesigner extension loaded:", td);
+                resolve(td);
+            });
+        });
 
         const copilotOptions = {
             endpoint: options.endpoint || `${window.location.origin}/copilot`,
             language: language,
-            externalContext: options.useExternalContext ? JSON.parse(options.externalContext) : undefined,
-            technologies: options.useTechnologies ? options.technologies.split(',') : undefined,
-            customPrompt: options.useCustomPrompt ? createCustomPrompt() : undefined,
+            externalContext: options.useExternalContext ? options.externalContext : undefined,
+            technologies: options.useTechnologies ? options.technologies : undefined,
+            customPrompt: options.useCustomPrompt ? options.customPrompt : createCustomPrompt,
         };
 
+        //console.log("Registering Copilot with options:", JSON.stringify(copilotOptions, null, 2));
         registerCopilot(monaco, editor, copilotOptions);
 
         // Monkey patch the fetch function to intercept and handle Copilot requests
         const originalFetch = window.fetch;
         window.fetch = async (url, fetchOptions) => {
             if (url === copilotOptions.endpoint) {
-                if (!isCopilotEnabled) {
-                    //console.log("Monacopilot is disabled, not processing request");
-                    return new Response(JSON.stringify({ completion: '' }), {
-                        status: 200,
-                        headers: { 'Content-Type': 'application/json' }
-                    });
-                }
-                console.log("Processing Monacopilot request");
+                //console.log("Processing Monacopilot request");
                 const request = JSON.parse(fetchOptions.body);
+                //console.log("Copilot Request Body:", JSON.stringify(request, null, 2));
+
+                // If the customPrompt is a function, call it and log the result
+                if (typeof copilotOptions.customPrompt === 'function') {
+                    const promptParams = request.completionMetadata;
+                    const customPrompt = copilotOptions.customPrompt(promptParams);
+                    //console.log("Custom Prompt:", JSON.stringify(customPrompt, null, 2));
+                }
+
                 try {
-                    console.log("Sending request to Copilot instance");
+                    //console.log("Sending request to Copilot instance");
                     const completion = await copilotInstance.complete({ body: request });
-                    console.log("Received Copilot completion:", completion);
+                    //console.log("Received Copilot completion:", JSON.stringify(completion, null, 2));
                     return new Response(JSON.stringify(completion), {
                         status: 200,
                         headers: { 'Content-Type': 'application/json' }
@@ -96,21 +99,29 @@ export async function initializeMonacopilot(monaco, editor, language, options = 
             return originalFetch(url, fetchOptions);
         };
 
-        console.log("Monacopilot initialized for", language);
+        //console.log("Monacopilot initialized for", language);
     } catch (error) {
         console.error("Failed to initialize Monacopilot:", error);
     }
 }
 
 export function enableMonacopilot(monaco, editor, config = {}) {
-    console.log("Enabling Monacopilot with config:", config);
+    //console.log("Enabling Monacopilot with config:", config);
     isCopilotEnabled = true;
+    if (touchDesignerExtension && touchDesignerExtension.setCopilotMode) {
+        //console.log("Setting TouchDesigner extension Copilot mode to true");
+        touchDesignerExtension.setCopilotMode(true);
+    } else {
+        console.warn("TouchDesigner extension or setCopilotMode not available");
+    }
     initializeMonacopilot(monaco, editor, editor.getModel().getLanguageId(), config);
 }
 
+
 export function disableMonacopilot(monaco, editor) {
-    console.log("Disabling Monacopilot");
+    //console.log("Disabling Monacopilot");
     isCopilotEnabled = false;
+    touchDesignerExtension.setCopilotMode(false);
     safeDispose(copilotInstance);
     copilotInstance = null;
 
@@ -131,15 +142,15 @@ export function updateMonacopilotLanguage(monaco, editor, language, options = {}
             customPrompt: options.useCustomPrompt ? createCustomPrompt() : undefined,
         };
         registerCopilot(monaco, editor, copilotOptions);
-        console.log("Monacopilot language updated to", language);
+        //console.log("Monacopilot language updated to", language);
     } else {
         console.error("Monacopilot not initialized");
     }
 }
 
 export function setupOpenRouter(apiKey, options) {
-    console.log("Setting up OpenRouter with API key:", apiKey ? "REDACTED" : "undefined");
-    console.log("Options:", options);
+    //console.log("Setting up OpenRouter with API key:", apiKey ? "REDACTED" : "undefined");
+    //console.log("Options:", options);
 
     return {
         model: {
@@ -159,7 +170,7 @@ export function setupOpenRouter(apiKey, options) {
                 },
             }),
             transformResponse: (response) => {
-                console.log("Raw API response:", response);
+                //console.log("Raw API response:", response);
                 return {
                     completion: response.choices[0].message.content,
                 };
@@ -177,13 +188,26 @@ function getTechnologies() {
     return ['python', 'touchdesigner'];
 }
 
-function createCustomPrompt() {
-    return ({ language, textBeforeCursor, textAfterCursor }) => ({
-        system: `You are an AI assistant specialized in writing ${language} code for TouchDesigner projects.`,
+function createCustomPrompt({ language, textBeforeCursor, textAfterCursor }) {
+    //console.log("Creating custom prompt for language:", language);
+    let tdSuggestions = [];
+    if (touchDesignerExtension && touchDesignerExtension.getCopilotSuggestions) {
+        //console.log("Getting TouchDesigner suggestions for Copilot");
+        tdSuggestions = touchDesignerExtension.getCopilotSuggestions();
+    } else {
+        console.warn("TouchDesigner extension or getCopilotSuggestions not available");
+    }
+    //console.log("TouchDesigner suggestions count:", tdSuggestions.length);
+    const prompt = {
+        system: `You are an AI assistant specialized in writing ${language} code for TouchDesigner projects. 
+                 You have access to the following TouchDesigner-specific suggestions:
+                 ${JSON.stringify(tdSuggestions, null, 2)}`,
         user: `Complete the following ${language} code:
 ${textBeforeCursor}
 // Cursor position
 ${textAfterCursor}
-Provide only the code completion without additional comments.`,
-    });
+Provide only the code completion without additional comments. You can use the TouchDesigner-specific suggestions provided in the system message to inform your completion.`,
+    };
+    //console.log("Full custom prompt:", JSON.stringify(prompt, null, 2));
+    return prompt;
 }
