@@ -1,0 +1,668 @@
+# me - this DAT.
+# webServerDAT - the connected Web Server DAT
+# request - A dictionary of the request fields.
+# response - A dictionary defining the response, to be filled in during the request method.
+import json
+import os
+import subprocess
+
+    # Handle file_content without authentication
+def onHTTPRequest(webServerDAT, request, response):
+    uri = request['uri']
+    method = request['method']
+
+    if uri == '/api/file_content':
+        if method == 'GET':
+            op_path = request['pars'].get('path')
+            if op_path:
+                try:
+                    print(f"GET request for operator path: {op_path}")  # Debug print
+                    content = get_op_content(op_path)
+                    response['statusCode'] = 200
+                    response['statusReason'] = 'OK'
+                    response['data'] = content
+                    response['content-type'] = 'text/plain'
+                except Exception as e:
+                    response['statusCode'] = 404
+                    response['statusReason'] = 'Not Found'
+                    response['data'] = str(e)
+                    print(f"Error in GET /api/file_content: {str(e)}")
+            else:
+                response['statusCode'] = 400
+                response['statusReason'] = 'Bad Request'
+                response['data'] = 'Missing path parameter'
+        elif method == 'POST':
+            try:
+                content = json.loads(request['data'])
+                op_path = content.get('path')
+                file_content = content.get('content')
+                if op_path and file_content is not None:
+                    print(f"POST request to update operator at path: {op_path}")  # Debug print
+                    update_op_content(op_path, file_content)
+                    response['statusCode'] = 200
+                    response['statusReason'] = 'OK'
+                    response['data'] = 'File updated successfully'
+                else:
+                    response['statusCode'] = 400
+                    response['statusReason'] = 'Bad Request'
+                    response['data'] = 'Missing path or content in request'
+            except Exception as e:
+                response['statusCode'] = 500
+                response['statusReason'] = 'Internal Server Error'
+                response['data'] = f'Error updating file: {str(e)}'
+                print(f"Error in POST /api/file_content: {str(e)}")
+        return response
+
+    if uri == '/api/dats':
+        if method == 'GET':
+            try:
+                dats_op = op('dats')
+                if not dats_op:
+                    raise Exception("'dats' operator not found")
+                
+                dats_data = []
+                for row in dats_op.rows()[1:]:  # Skip header row
+                    if len(row) >= 4:
+                        name, path, rel_path, tags = [cell_to_str(cell) for cell in row[:4]]
+                        dats_data.append({
+                            'name': name,
+                            'path': path,
+                            'relPath': rel_path,
+                            'tags': tags
+                        })
+                    else:
+                        print(f"Warning: Skipping row with insufficient data: {row}")
+                
+                response['statusCode'] = 200
+                response['statusReason'] = 'OK'
+                response['data'] = json.dumps(dats_data)
+                response['content-type'] = 'application/json'
+            except Exception as e:
+                print(f"Error in /api/dats: {str(e)}")
+                response['statusCode'] = 500
+                response['statusReason'] = 'Internal Server Error'
+                response['data'] = f'Error fetching dats: {str(e)}'
+        else:
+            response['statusCode'] = 405
+            response['statusReason'] = 'Method Not Allowed'
+            response['data'] = 'Only GET method is allowed for this endpoint'
+        return response
+
+    if uri == '/api/absolute_path':
+        if method == 'GET':
+            path = request['pars'].get('path')
+            if path:
+                try:
+                    absolute_path = get_absolute_path(path)
+                    response['statusCode'] = 200
+                    response['statusReason'] = 'OK'
+                    response['data'] = absolute_path
+                    response['content-type'] = 'text/plain'
+                except Exception as e:
+                    response['statusCode'] = 404
+                    response['statusReason'] = 'Not Found'
+                    response['data'] = str(e)
+            else:
+                response['statusCode'] = 400
+                response['statusReason'] = 'Bad Request'
+                response['data'] = 'Missing path parameter'
+        return response
+
+    if uri == '/api/git_ignore':
+        if method == 'POST':
+            try:
+                content = json.loads(request['data'])
+                op_path = content.get('path')
+                should_ignore = content.get('ignore')
+                print(f"Received git-ignore request for path: {op_path}")  # Debug print
+                if op_path is not None and should_ignore is not None:
+                    target_op = op(op_path)
+                    if target_op:
+                        print(f"Found operator: {target_op}")  # Debug print
+                        current_tags = set(target_op.tags)
+                        print(f"Current tags: {current_tags}")  # Debug print
+                        if should_ignore:
+                            current_tags.add('git-ignore')
+                        else:
+                            current_tags.discard('git-ignore')
+                        target_op.tags = list(current_tags)
+                        print(f"Updated tags: {target_op.tags}")  # Debug print
+                        
+                        # Update the dats table
+                        dats_op = op('dats')
+                        for row in dats_op.rows()[1:]:  # Skip header row
+                            if row[1].val == op_path:  # Assuming the path is in the second column
+                                row[3] = ' '.join(target_op.tags)
+                                break
+                        
+                        response['statusCode'] = 200
+                        response['statusReason'] = 'OK'
+                        response['data'] = f'Updated git-ignore status for {op_path}'
+                    else:
+                        print(f"Operator not found: {op_path}")  # Debug print
+                        response['statusCode'] = 404
+                        response['statusReason'] = 'Not Found'
+                        response['data'] = f'Operator not found: {op_path}'
+                else:
+                    response['statusCode'] = 400
+                    response['statusReason'] = 'Bad Request'
+                    response['data'] = 'Missing path or ignore status'
+            except Exception as e:
+                print(f"Error in git-ignore: {str(e)}")  # Debug print
+                response['statusCode'] = 500
+                response['statusReason'] = 'Internal Server Error'
+                response['data'] = f'Error updating git-ignore status: {str(e)}'
+        return response
+
+    if uri == '/api/is_git_ignored':
+        if method == 'GET':
+            op_path = request['pars'].get('path')
+            if op_path:
+                is_ignored = is_git_ignored(op_path)
+                response['statusCode'] = 200
+                response['statusReason'] = 'OK'
+                response['data'] = str(is_ignored).lower()
+            else:
+                response['statusCode'] = 400
+                response['statusReason'] = 'Bad Request'
+                response['data'] = 'Missing path parameter'
+        return response
+
+    # Add these to your existing onHTTPRequest function
+
+    if uri == '/api/cd':
+        if method == 'POST':
+            try:
+                new_path = json.loads(request['data'])['path']
+                print(f"Received CD request for path: {new_path}")  # Debug print
+                target_op = op(new_path)
+                if target_op and target_op.isCOMP:
+                    print(f"Valid path found: {new_path}")  # Debug print
+                    response['statusCode'] = 200
+                    response['statusReason'] = 'OK'
+                    response['data'] = new_path
+                else:
+                    print(f"Invalid path: {new_path}")  # Debug print
+                    response['statusCode'] = 404
+                    response['statusReason'] = 'Not Found'
+                    response['data'] = f"Invalid path: {new_path}"
+            except Exception as e:
+                print(f"Error in CD: {str(e)}")  # Debug print
+                response['statusCode'] = 500
+                response['statusReason'] = 'Internal Server Error'
+                response['data'] = str(e)
+        return response
+
+    if uri == '/api/ls':
+        if method == 'GET':
+            try:
+                current_path = request['pars']['path']
+                recursive = request['pars'].get('recursive', 'false').lower() == 'true'
+                depth = int(request['pars'].get('depth', '-1'))
+                
+                def list_recursively(path, current_depth):
+                    parent_op = op(path)
+                    if parent_op and parent_op.isCOMP:
+                        children = []
+                        for child in parent_op.children:
+                            child_info = {'name': child.name, 'type': child.type, 'path': child.path}
+                            if child.isCOMP and (depth == -1 or current_depth < depth):
+                                child_info['children'] = list_recursively(child.path, current_depth + 1)
+                            children.append(child_info)
+                        return children
+                    return []
+
+                result = list_recursively(current_path, 0)
+                
+                response['statusCode'] = 200
+                response['statusReason'] = 'OK'
+                response['data'] = json.dumps(result)
+                response['content-type'] = 'application/json'
+            except Exception as e:
+                response['statusCode'] = 500
+                response['statusReason'] = 'Internal Server Error'
+                response['data'] = str(e)
+        return response
+
+    if uri == '/api/create_operator':
+        if method == 'POST':
+            try:
+                data = json.loads(request['data'])
+                parent_path = data['parent_path']
+                op_type = data['type']
+                name = data['name']
+                print(f"Creating operator: type={op_type}, name={name}, parent_path={parent_path}")  # Debug print
+                parent_op = op(parent_path)
+                if parent_op and parent_op.isCOMP:
+                    new_op = parent_op.create(op_type, name)
+                    response['statusCode'] = 200
+                    response['statusReason'] = 'OK'
+                    response['data'] = f"Created {op_type} operator: {new_op.path}"
+                else:
+                    response['statusCode'] = 404
+                    response['statusReason'] = 'Not Found'
+                    response['data'] = f"Invalid parent path: {parent_path}"
+            except Exception as e:
+                print(f"Error creating operator: {str(e)}")  # Debug print
+                response['statusCode'] = 500
+                response['statusReason'] = 'Internal Server Error'
+                response['data'] = str(e)
+        return response
+
+    if uri == '/api/delete_operator':
+        if method == 'POST':
+            try:
+                data = json.loads(request['data'])
+                parent_path = data['parent_path']
+                name = data['name']
+                parent_op = op(parent_path)
+                if parent_op and parent_op.isCOMP:
+                    target_op = parent_op.op(name)
+                    if target_op:
+                        target_op.destroy()
+                        response['statusCode'] = 200
+                        response['statusReason'] = 'OK'
+                        response['data'] = f"Deleted operator: {name}"
+                    else:
+                        response['statusCode'] = 404
+                        response['statusReason'] = 'Not Found'
+                        response['data'] = f"Operator not found: {name}"
+                else:
+                    response['statusCode'] = 404
+                    response['statusReason'] = 'Not Found'
+                    response['data'] = f"Invalid parent path: {parent_path}"
+            except Exception as e:
+                response['statusCode'] = 500
+                response['statusReason'] = 'Internal Server Error'
+                response['data'] = str(e)
+        return response
+
+
+    if uri == '/api/npm_command':
+        if method == 'POST':
+            try:
+                data = json.loads(request['data'])
+                command = data['command']
+                relative_directory = data['directory']
+                
+                # Construct the full path using the project folder
+                full_path = os.path.normpath(os.path.join(project.folder, relative_directory.lstrip('/')))
+                
+                print(f"Executing npm command: npm {command} in directory: {full_path}")
+                
+                # Run npm command
+                process = subprocess.Popen(f'cd "{full_path}" && npm {command}', 
+                                           shell=True, 
+                                           stdout=subprocess.PIPE, 
+                                           stderr=subprocess.PIPE,
+                                           text=True)
+                stdout, stderr = process.communicate()
+                
+                print(f"npm stdout: {stdout}")
+                print(f"npm stderr: {stderr}")
+                
+                if process.returncode == 0:
+                    response['statusCode'] = 200
+                    response['statusReason'] = 'OK'
+                    response['data'] = f"Command output:\n{stdout}\nError output:\n{stderr}"
+                    
+                    if command.startswith('uninstall'):
+                        # Handle uninstallation
+                        package_name = command.split()[1]
+                        delete_touchdesigner_components(full_path, package_name)
+                    else:
+                        # Create or update TouchDesigner components
+                        create_touchdesigner_components(full_path)
+                else:
+                    response['statusCode'] = 500
+                    response['statusReason'] = 'npm command failed'
+                    response['data'] = f"npm command failed with return code {process.returncode}.\nOutput: {stdout}\nError: {stderr}"
+                
+            except Exception as e:
+                response['statusCode'] = 500
+                response['statusReason'] = 'Internal Server Error'
+                response['data'] = str(e)
+                print(f"Error executing npm command: {str(e)}")
+        else:
+            response['statusCode'] = 405
+            response['statusReason'] = 'Method Not Allowed'
+            response['data'] = 'Only POST method is allowed for this endpoint'
+        return response
+
+
+
+    if uri == '/api/create_touchdesigner_components':
+        if method == 'POST':
+            try:
+                data = json.loads(request['data'])
+                relative_directory = data['directory']
+                
+                # Construct the full path using the project folder
+                full_path = os.path.normpath(os.path.join(project.folder, relative_directory.lstrip('/')))
+                
+                create_touchdesigner_components(full_path)
+                
+                response['statusCode'] = 200
+                response['statusReason'] = 'OK'
+                response['data'] = f"TouchDesigner components created for: {full_path}"
+            except Exception as e:
+                response['statusCode'] = 500
+                response['statusReason'] = 'Internal Server Error'
+                response['data'] = f"Error creating TouchDesigner components: {str(e)}"
+                print(f"Error creating TouchDesigner components: {str(e)}")
+                import traceback
+                print(traceback.format_exc())
+        else:
+            response['statusCode'] = 405
+            response['statusReason'] = 'Method Not Allowed'
+            response['data'] = 'Only POST method is allowed for this endpoint'
+        return response
+
+        
+
+    # Check if the request is for a route that requires authentication
+    if uri.startswith('/api/'):
+        token = me.fetch('github_access_token', None)
+        
+        if token:
+            response['statusCode'] = 200
+            response['statusReason'] = 'OK'
+            
+            # Handle different API routes
+            if uri == '/api/current_repo':
+                if method == 'GET':
+                    response['data'] = me.fetch('current_repo', '')
+                elif method == 'POST':
+                    me.store('current_repo', request['data'])
+                    response['data'] = 'Current repo updated'
+            elif uri == '/api/current_owner':
+                if method == 'GET':
+                    response['data'] = me.fetch('current_owner', '')
+                elif method == 'POST':
+                    me.store('current_owner', request['data'])
+                    response['data'] = 'Current owner updated'
+            elif uri == '/api/staged_files':
+                if method == 'GET':
+                    response['data'] = me.fetch('staged_files', '[]')
+                elif method == 'POST':
+                    me.store('staged_files', request['data'])
+                    response['data'] = 'Staged files updated'
+            elif uri == '/api/add_staged_file':
+                if method == 'POST':
+                    file_path = request['data']
+                    staged_files = json.loads(me.fetch('staged_files', '[]'))
+                    if file_path not in staged_files:
+                        staged_files.append(file_path)
+                        me.store('staged_files', json.dumps(staged_files))
+                        response['data'] = f'Added {file_path} to staged files'
+                    else:
+                        response['data'] = f'{file_path} is already staged'
+            elif uri == '/api/remove_staged_file':
+                if method == 'POST':
+                    file_path = request['data']
+                    staged_files = json.loads(me.fetch('staged_files', '[]'))
+                    if file_path in staged_files:
+                        staged_files.remove(file_path)
+                        me.store('staged_files', json.dumps(staged_files))
+                        response['data'] = f'Removed {file_path} from staged files'
+                    else:
+                        response['data'] = f'{file_path} is not in staged files'
+            elif uri == '/api/clear_staged_files':
+                if method == 'POST':
+                    me.store('staged_files', '[]')
+                    response['data'] = 'Cleared all staged files'
+            else:
+                response['statusCode'] = 404
+                response['statusReason'] = 'Not Found'
+                response['data'] = 'API endpoint not found'
+        else:
+            response['statusCode'] = 401
+            response['statusReason'] = 'Unauthorized'
+            response['data'] = 'OAuth token not found. Please authenticate first.'
+        
+        response['content-type'] = 'application/json'
+        return response
+    
+    # Handle other routes normally using the routes table
+    routes_table = op('webserver_routes')
+    
+    for row in routes_table.rows()[1:]:  # Skip header row
+        route_uri, operator_name, content_type = row
+        
+        if route_uri == uri:
+            response['statusCode'] = 200
+            response['statusReason'] = 'OK'
+            response['data'] = op(operator_name).text
+            response['content-type'] = content_type or 'text/html'
+            return response
+    
+    # If no match is found, return 404
+    response['statusCode'] = 404
+    response['statusReason'] = 'Not Found'
+    response['data'] = '404 - Not Found'
+    return response
+
+
+def get_absolute_path(op_path):
+    """
+    Convert a potentially relative path to an absolute path.
+    """
+    try:
+        # Try to evaluate the path as an operator
+        target_op = op(op_path)
+        return target_op.path
+    except:
+        # If it's not a valid operator path, return the original path
+        return op_path
+
+def get_op_content(op_path):
+    """
+    Retrieve the content of an operator given its path.
+    """
+    try:
+        if is_git_ignored(op_path):
+            raise Exception(f"Operator at path {op_path} is git-ignored")
+        
+        target_op = op(op_path)
+        if target_op is None:
+            raise Exception(f"Operator not found at path: {op_path}")
+        
+        if hasattr(target_op, 'text'):
+            return target_op.text
+        else:
+            raise AttributeError("Operator does not have a 'text' attribute or parameter")
+    except Exception as e:
+        raise Exception(f"Error retrieving content for {op_path}: {str(e)}")
+
+
+
+def update_op_content(op_path, content):
+    """
+    Update the content of an operator given its path.
+    """
+    if is_git_ignored(op_path):
+        raise Exception(f"Operator at path {op_path} is git-ignored")
+    try:
+        # Ensure the path starts with a forward slash
+        if not op_path.startswith('/'):
+            op_path = '/' + op_path
+        
+        print(f"Attempting to access operator at path: {op_path}")  # Debug print
+        
+        # Check if the operator exists
+        target_op = op(op_path)
+        if target_op is None:
+            raise Exception(f"Operator not found at path: {op_path}")
+        
+        # Update the text content
+        target_op.text = content
+        print(f"Successfully updated operator at path: {op_path}")  # Debug print
+    except Exception as e:
+        raise Exception(f"Error updating content for {op_path}: {str(e)}")
+
+
+def is_git_ignored(op_path):
+    dats_op = op('dats')
+    for row in dats_op.rows()[1:]:  # Skip header row
+        if row[1].val == op_path:  # Assuming the path is in the second column
+            operator = op(op_path)  # Get the operator directly using the path
+            if operator is not None:
+                return "git-ignore" in [tag.lower() for tag in operator.tags]  # Check operator's tags
+            else:
+                return False  # If the operator doesn't exist, return False
+    return False
+
+
+def create_touchdesigner_components(directory):
+    print(f"Creating TouchDesigner components for: {directory}")
+    
+    relative_path = os.path.relpath(directory, project.folder)
+    parent_path = '/' + relative_path.replace('\\', '/')
+    print(f"Looking for parent COMP at path: {parent_path}")
+    parent_comp = op(parent_path)
+    
+    if not parent_comp:
+        print(f"Error: Could not find parent COMP for path: {parent_path}")
+        print(f"Available root level COMPs: {[c.path for c in root.children]}")
+        return
+
+    spacing = 200
+    y_offset = 0
+
+    # Create package.json in the main directory
+    package_json = create_text_dat(parent_comp, os.path.join(directory, 'package.json'), 'package_json')
+    if package_json:
+        package_json.nodeX = 0
+        package_json.nodeY = y_offset
+        y_offset -= spacing
+
+    # Create package-lock.json in the main directory
+    package_lock = create_text_dat(parent_comp, os.path.join(directory, 'package-lock.json'), 'package_lock_json')
+    if package_lock:
+        package_lock.nodeX = 0
+        package_lock.nodeY = y_offset
+        y_offset -= spacing
+
+    # Create node_modules COMP
+    node_modules_path = os.path.join(directory, 'node_modules')
+    if os.path.exists(node_modules_path):
+        node_modules_comp = parent_comp.create(containerCOMP, 'node_modules')
+        node_modules_comp.nodeX = 0
+        node_modules_comp.nodeY = y_offset
+        print(f"Created node_modules COMP: {node_modules_comp.path}")
+
+        # Recursively create components for each package
+        create_package_components(node_modules_path, node_modules_comp)
+    else:
+        print("node_modules directory not found")
+
+    print(f"Finished creating TouchDesigner components for: {directory}")
+
+def delete_touchdesigner_components(directory, package_name):
+    print(f"Deleting TouchDesigner components for package: {package_name}")
+    
+    relative_path = os.path.relpath(directory, project.folder)
+    parent_path = '/' + relative_path.replace('\\', '/')
+    parent_comp = op(parent_path)
+    
+    if not parent_comp:
+        print(f"Error: Could not find parent COMP for path: {parent_path}")
+        return
+
+    node_modules_comp = parent_comp.op('node_modules')
+    if node_modules_comp:
+        package_comp = node_modules_comp.op(package_name)
+        if package_comp:
+            package_comp.destroy()
+            print(f"Deleted package COMP: {package_name}")
+        else:
+            print(f"Package COMP not found: {package_name}")
+
+        # Check if node_modules is empty and delete if it is
+        if len(node_modules_comp.children) == 0:
+            node_modules_comp.destroy()
+            print("Deleted empty node_modules COMP")
+    else:
+        print("node_modules COMP not found")
+
+    # Update package.json and package-lock.json
+    create_text_dat(parent_comp, os.path.join(directory, 'package.json'), 'package_json')
+    create_text_dat(parent_comp, os.path.join(directory, 'package-lock.json'), 'package_lock_json')
+
+    # Check if node_modules directory is empty and delete if it is
+    node_modules_path = os.path.join(directory, 'node_modules')
+    if os.path.exists(node_modules_path) and len(os.listdir(node_modules_path)) == 0:
+        os.rmdir(node_modules_path)
+        print(f"Deleted empty node_modules directory: {node_modules_path}")
+
+        
+def create_package_components(package_path, parent_comp, x_offset=0, y_offset=0):
+    spacing = 200  # Adjust this value to change the spacing between components
+    for item in os.listdir(package_path):
+        item_path = os.path.join(package_path, item)
+        if os.path.isdir(item_path):
+            # Create a COMP for each package
+            package_comp = parent_comp.create(containerCOMP, item)
+            package_comp.nodeX = x_offset
+            package_comp.nodeY = y_offset
+            print(f"Created package COMP: {package_comp.path} at position ({x_offset}, {y_offset})")
+            
+            # Recursively create components for subdirectories
+            create_package_components(item_path, package_comp, x_offset + spacing, y_offset)
+            
+            # Update y_offset for the next package
+            y_offset -= spacing
+        elif os.path.isfile(item_path):
+            # Create text DATs for files
+            text_dat = create_text_dat(parent_comp, item_path, item.replace('.', '_'))
+            if text_dat:
+                text_dat.nodeX = x_offset
+                text_dat.nodeY = y_offset
+                y_offset -= spacing / 2  # Use smaller spacing for files
+
+def create_text_dat(parent_comp, file_path, dat_name):
+    try:
+        if os.path.exists(file_path):
+            with open(file_path, 'r', encoding='utf-8') as file:
+                content = file.read()
+            text_dat = parent_comp.create(textDAT, dat_name)
+            text_dat.text = content
+            print(f"Created text DAT: {text_dat.path}")
+            return text_dat
+        else:
+            print(f"File not found: {file_path}")
+    except Exception as e:
+        print(f"Error creating text DAT for {file_path}: {str(e)}")
+    return None
+
+        
+def cell_to_str(cell):
+    return str(cell.val) if hasattr(cell, 'val') else str(cell)
+
+
+def onWebSocketOpen(webServerDAT, client, uri):
+    return
+
+def onWebSocketClose(webServerDAT, client):
+    return
+
+def onWebSocketReceiveText(webServerDAT, client, data):
+    webServerDAT.webSocketSendText(client, data)
+    return
+
+def onWebSocketReceiveBinary(webServerDAT, client, data):
+    webServerDAT.webSocketSendBinary(client, data)
+    return
+
+def onWebSocketReceivePing(webServerDAT, client, data):
+    webServerDAT.webSocketSendPong(client, data=data)
+    return
+
+def onWebSocketReceivePong(webServerDAT, client, data):
+    return
+
+def onServerStart(webServerDAT):
+    return
+
+def onServerStop(webServerDAT):
+    return
