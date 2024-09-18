@@ -1,0 +1,11 @@
+id	sn	select	downf	upf	x	y	u	v	downu	downv	contactx	contacty	contactu	contactv	monitor	clicktime	elapsedtime	changedtime	dclick	aux
+																				
+																				
+																				
+																				
+																				
+																				
+																				
+																				
+																				
+																				
