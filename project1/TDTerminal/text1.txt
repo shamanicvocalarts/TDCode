@@ -1,0 +1,21 @@
+# function to calculate the tig ole bitties
+
+def calculate_tob(num_bits):
+    if num_bits <= 0:
+        return "Invalid input. Number of bits must be greater than 0."
+    else:
+        tob = 1024 ** (num_bits / 10)
+        return tob
+
+def bitties_to_bitties(num_bits):
+    return calculate_tob(num_bits)
+
+def main():
+    num_bits = int(input("Enter the number of bits: "))
+    result = bitties_to_bitties(num_bits)
+    print(f"{num_bits} bits is equal to {result} tig ole bitties.")
+
+if __name__ == "__main__":
+    main()
+
+if these 
