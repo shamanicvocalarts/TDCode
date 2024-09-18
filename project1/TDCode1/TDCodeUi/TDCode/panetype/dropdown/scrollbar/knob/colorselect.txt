@@ -1,0 +1,4 @@
+path	parameter	value
+"parentoverride"	"dat"	ifs(panelp("..", "state") == 0, "off", "on")
+"parentoverride"	"dat"	ifs(panelp("..", "inside") == 1, tabc(".",$R-1,"value")+roll, tabc(".",$R-1,"value"))
+"parentoverride"	"dat"	ifs(panelp("..", "enable") == 0, tabr("colorstates",tabc(".",$R-1,"value"),1), tabr("colorstates",tabc(".",$R-1,"value"),1))
