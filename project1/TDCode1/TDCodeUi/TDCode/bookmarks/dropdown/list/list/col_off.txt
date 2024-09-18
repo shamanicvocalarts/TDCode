@@ -1,0 +1,2 @@
+width	col_width
+textjustify	col_justify
