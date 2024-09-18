@@ -1,0 +1,10 @@
+key	character	alt	ctrl	shift	state	time	cmd
+lshift		0	0	1	1	180876890	0
+s	S	0	0	1	1	180877089	0
+shift		0	0	0	0	180877140	0
+lshift		0	0	0	0	180877140	0
+s	s	0	0	0	0	180877222	0
+u	u	0	0	0	1	180877307	0
+u	u	0	0	0	0	180877424	0
+b	b	0	0	0	1	180877498	0
+b	b	0	0	0	0	180877605	0
