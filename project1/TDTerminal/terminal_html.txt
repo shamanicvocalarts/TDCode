@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TDCode GitHub API Terminal</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            margin: 0;
+            padding: 20px;
+        }
+        #terminal {
+            background-color: #000000;
+            border: 1px solid #3a3a3a;
+            height: 400px;
+            overflow-y: auto;
+            padding: 10px;
+            margin-bottom: 10px;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        #input {
+            width: 100%;
+            padding: 5px;
+            background-color: #2d2d2d;
+            color: #d4d4d4;
+            border: 1px solid #3a3a3a;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+        .command {
+            color: #9cdcfe !important; /* Light blue */
+        }
+        .output {
+            color: #d4d4d4 !important; /* Light gray */
+        }
+        .error {
+            color: #ff6b6b !important; /* Light red */
+        }
+        .success {
+            color: #98c379 !important; /* Light green */
+        }
+        .info {
+            color: #61afef !important; /* Light cyan */
+        }
+        .warning {
+            color: #e5c07b !important; /* Light yellow */
+        }
+        .debug {
+            color: #c678dd !important; /* Light purple */
+        }
+        .highlight {
+            background-color: #3a3a3a;
+            color: #d4d4d4;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+        .git {
+            color: #e06c75 !important; /* Light red */
+        }
+        .cd {
+            color: #c678dd !important; /* Light purple */
+        }
+        .ls {
+            color: #e5c07b !important; /* Light yellow */
+        }
+        .create {
+            color: #98c379 !important; /* Light green */
+        }
+        .delete {
+            color: #61afef !important; /* Light cyan */
+        }
+        .auth {
+            color: #d19a66 !important; /* Light orange */
+        }
+        .checkAuth {
+            color: #d19a66 !important; /* Light orange */
+        }
+        .gitIgnore {
+            color: #d19a66 !important; /* Light orange */
+        }
+        .clear {
+            color: #d19a66 !important; /* Light orange */
+        }
+        .help {
+            color: #d19a66 !important; /* Light orange */
+        }
+    </style>
+</head>
+<body>
+    <div id="terminal"></div>
+    <input id="input" type="text" placeholder="Type your commands here..." autofocus>
+    <script type="module" src="/terminal.js"></script>
+</body>
+</html>
