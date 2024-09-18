@@ -1,0 +1,7 @@
+No Link	desk -k 0 $pane
+1	desk -k 1 $pane
+2	desk -k 2 $pane
+3	desk -k 3 $pane
+Inside 1	desk -k -1 $pane
+Inside 2	desk -k -2 $pane
+Inside 3	desk -k -3 $pane
