@@ -1,0 +1,2 @@
+name/text1
+path/text1
