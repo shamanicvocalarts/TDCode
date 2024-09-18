@@ -1,0 +1,2 @@
+path	parameter	value
+"parentoverride"	"dat"	ifs(panelp("..", "enable") == 0, tabr("colorstates","disable",1), tabr("colorstates","on",1))
