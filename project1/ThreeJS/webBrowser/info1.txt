@@ -1,0 +1,10 @@
+handle	touchdesigner_top_cef.43480.20	
+status	running	
+process_id	64000	
+cef	CEF 115.3	
+chromium	Chromium 115.0.5790.171	
+url	http://localhost:26215/	
+title	Three.js Model Editor for TouchDesigner	
+http_status	200	
+error		
+error_code		
