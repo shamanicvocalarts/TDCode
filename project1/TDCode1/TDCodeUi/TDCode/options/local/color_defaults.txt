@@ -1,0 +1,17 @@
+gadget_bg	gadget_bg
+dropdown_border	gadget_bordera
+divider	buttontext_off
+button_bg_off	button_off
+button_bg_offroll	button_offroll
+button_bg_on	button_on
+button_bg_onroll	button_onroll
+button_bg_disable	button_disable
+button_bordera	button_bordera
+button_borderb	button_borderb
+button_text_off	buttontext_off
+button_text_offroll	buttontext_offroll
+button_text_on	buttontext_on
+button_text_onroll	buttontext_onroll
+button_text_disable	buttontext_disable
+label_text	buttontext_off
+label_text_disable	buttontext_disable
