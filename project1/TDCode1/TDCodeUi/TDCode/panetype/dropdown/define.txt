@@ -1,0 +1,1 @@
+items	`clamp(tabr("$gadget/local/define","listitems",1),1,999)`
