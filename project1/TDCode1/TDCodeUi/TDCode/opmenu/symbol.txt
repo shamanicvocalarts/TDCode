@@ -1,0 +1,7 @@
+up	N
+down	M
+left	<
+right	>
+circle	h
+plus	}
+add	+
