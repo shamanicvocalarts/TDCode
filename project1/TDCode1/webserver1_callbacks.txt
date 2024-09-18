@@ -4,6 +4,8 @@ import json
 import time
 import base64
 import hashlib
+import os
+
 
 # Global variables for tracking state
 last_known_hashes = {}
@@ -17,6 +19,11 @@ def onHTTPRequest(webServerDAT, request, response):
     
     # Access the webserver_routes table
     routes_table = op('webserver_routes')
+
+    if uri == '/api/getApiKey':
+        return handle_api_key_request(request, response)
+
+
     
     # Iterate over the rows to find the matching route
     for row in routes_table.rows():
@@ -110,6 +117,13 @@ def onWebSocketReceiveText(webServerDAT, client, data):
                     UpdateOpParameters(target_op, parameters)
                 else:
                     print(f"Invalid target OP: {path}")
+        elif message['action'] == 'copilotRequest':
+            # The actual completion is handled client-side, 
+            # so we just need to pass the message back
+            webServerDAT.webSocketSendText(client, json.dumps({
+                'action': 'copilotResponse',
+                'request': message['request']
+            }))
 
     except json.JSONDecodeError:
         print("Received invalid JSON data")
@@ -184,10 +198,31 @@ def onServerStart(webServerDAT):
 def onServerStop(webServerDAT):
     print("WebServer stopped")
 
+def send_copilot_status(is_enabled):
+    print(f"Sending copilot status: {is_enabled}")
+    message = json.dumps({
+        'action': 'updateCopilotStatus',
+        'isEnabled': is_enabled
+    })
+    webserver = op('webserver1')
+    if webserver and webserver.webSocketConnections:
+        for client in webserver.webSocketConnections:
+            webserver.webSocketSendText(client, message)
+
+def send_copilot_config(config):
+    message = json.dumps({
+        'action': 'updateCopilotConfig',
+        'config': config
+    })
+    webserver = op('webserver1')
+    if webserver and webserver.webSocketConnections:
+        for client in webserver.webSocketConnections:
+            webserver.webSocketSendText(client, message)
+
 def SendDatContent(path):
-    """
+    """'''  '''
     Send DAT content to the editor.
-    """
+    """ 
     dat_op = op(path)
     if dat_op and dat_op.isDAT:
         content = dat_op.text
@@ -275,6 +310,8 @@ def GetOpParametersAsJSON(op):
     
     return json.dumps(parameters, indent=2)
 
+
+
 def UpdateOpParameters(op, parameters):
     """
     Update an OP's parameters based on the provided JSON data.
@@ -309,3 +346,44 @@ def onOperatorParameterChange(par):
     path = op.path
     parameters = GetOpParametersAsJSON(op)
     SendContentToEditor(parameters, path, language='json', action='updateOpParameters')
+
+
+def handle_api_key_request(request, response):
+    print("Received API key request:", request)  # Debug print
+    query_params = request.get('pars', {})
+    provider = query_params.get('provider')
+    
+    if not provider:
+        print("Provider not specified in request")  # Debug print
+        response['statusCode'] = 400
+        response['statusReason'] = 'Bad Request'
+        response['data'] = json.dumps({"error": "Provider not specified"})
+        return response
+
+    print(f"Looking up endpoint for provider: {provider}")  # Debug print
+    # Assume 'api_endpoints' is a DAT storing provider-endpoint mappings
+    endpoints_dat = op('api_endpoints')
+    endpoint = endpoints_dat[provider, 1].val if provider in endpoints_dat.col('provider') else None
+
+    if not endpoint:
+        print(f"Endpoint for {provider} not found")  # Debug print
+        response['statusCode'] = 404
+        response['statusReason'] = 'Not Found'
+        response['data'] = json.dumps({"error": f"Endpoint for {provider} not found"})
+        return response
+
+    print(f"Found endpoint: {endpoint}")  # Debug print
+    key = os.environ.get(endpoint)
+    if not key:
+        print(f"API key for {provider} not found in environment variables")  # Debug print
+        response['statusCode'] = 404
+        response['statusReason'] = 'Not Found'
+        response['data'] = json.dumps({"error": f"API key for {provider} not found"})
+        return response
+
+    print("Sending successful response")  # Debug print
+    response['statusCode'] = 200
+    response['statusReason'] = 'OK'
+    response['content-type'] = 'application/json'
+    response['data'] = json.dumps({"endpoint": endpoint, "key": key})
+    return response
