@@ -1,0 +1,15 @@
+label	Button
+displaylabel	0
+labelwidth	50
+contextmenu	menu2
+listitems	22
+dropdowndirh	right
+dropdowndirv	down
+window	0
+fonttype	symbol
+symbol	star
+type	toggleup
+sizetoparent	1
+font_size	9
+symbol_size	12
+dropdownwidth	128
