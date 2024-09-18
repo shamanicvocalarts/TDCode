@@ -4,7 +4,6 @@ opfind1_callbacks	/ui/dialogs/bookmark_bar/TDCButton/opfind1_callbacks	opfind1_c
 opfind2_callbacks	/ui/dialogs/bookmark_bar/TDCButton/opfind2_callbacks	opfind2_callbacks	1	
 name	path	relPath	depth	tags
 text1	/project1/text1	text1	1	
-text2	/project1/text2	text2	1	
 ui_js	/project1/TDCode1/ui_js	TDCode1/ui_js	2	
 set	/project1/TDCode1/TDCodeUi/TDCode/run/set	TDCode1/TDCodeUi/TDCode/run/set	5	
 help	/project1/TDCode1/TDCodeUi/TDCode/run/button/help	TDCode1/TDCodeUi/TDCode/run/button/help	6	
@@ -262,11 +261,5 @@ fileOperations_js	/project1/TDTerminal/fileOperations_js	TDTerminal/fileOperatio
 opfind1_callbacks	/project1/TDTerminal/opfind1_callbacks	TDTerminal/opfind1_callbacks	2	
 opfind2_callbacks	/project1/TDTerminal/opfind2_callbacks	TDTerminal/opfind2_callbacks	2	
 webserver1_callbacks	/project1/TDTerminal/webserver1_callbacks	TDTerminal/webserver1_callbacks	2	
-parexec1	/project1/virtualFile/parexec1	virtualFile/parexec1	2	
-parexec1	/project1/virtualFile/docsHelper/parexec1	virtualFile/docsHelper/parexec1	3	
-DocsHelper	/project1/virtualFile/docsHelper/DocsHelper	virtualFile/docsHelper/DocsHelper	3	'TDExtension'
-parexec_PaletteComp	/project1/virtualFile/docsHelper/parexec_PaletteComp	virtualFile/docsHelper/parexec_PaletteComp	3	
-VirtualFileExt	/project1/virtualFile/VirtualFileExt	virtualFile/VirtualFileExt	2	'TDExtension'
-script1_callbacks	/project1/virtualFile/script1_callbacks	virtualFile/script1_callbacks	2	
 Set_Variable	/project1/Set_Variable	Set_Variable	1	
 TouchDesigner_Cheatsheet	/project1/TouchDesigner_Cheatsheet	TouchDesigner_Cheatsheet	1	
