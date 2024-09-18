@@ -1,9 +1,11 @@
 //editor.js
-
+import { initializeMonacopilot, updateMonacopilotLanguage, enableMonacopilot, disableMonacopilot } from './monacopilot_config.js';
 import { editorConfig } from './editor_config.js';
 import { setupWebSocket, sendWebSocketMessage, sendContentToServer, sendPendingChanges } from './websocket.js';
 import { setupUIEventListeners } from './ui.js';
 import { log, saveUndoHistory, loadUndoHistory, updateThemeVariables } from './utils.js';
+
+import { registerCopilot } from "https://unpkg.com/monacopilot@0.9.31/build/index.mjs";
 
 let editor; // The main Monaco editor instance
 let editorModels = {}; // Object to store editor models for different files
@@ -36,6 +38,27 @@ function createEditor() {
 
     // Change the editor language based on the initial selection
     changeLanguage(initialLanguage, initialLanguageFile);
+
+    // Initialize Monacopilot after setting the initial language
+    initializeMonacopilot(monaco, editor, initialLanguage, {
+        provider: 'openrouter',
+        model: 'deepseek/deepseek-chat',
+        useExternalContext: false,
+        useTechnologies: true,
+        useCustomPrompt: true,
+        
+        //siteUrl: window.location.origin,
+        //siteName: 'TDCode'
+    });
+
+    // Add event listener for language changes
+    languageSelect.addEventListener('change', function (e) {
+        const newLanguage = e.target.value;
+        const newLanguageFile = e.target.options[e.target.selectedIndex].getAttribute('data-language-file');
+        changeLanguage(newLanguage, newLanguageFile);
+    });
+
+
 
     // Add custom actions to the editor
     editor.addAction({
@@ -84,7 +107,10 @@ function createEditor() {
             }
         }
     });
+
 }
+
+
 
 // Handle incoming WebSocket messages
 function handleWebSocketMessage(data) {
@@ -99,8 +125,41 @@ function handleWebSocketMessage(data) {
         updateOpsDropdown(data.ops);
     } else if (data.action === 'updateOpParameters') {
         updateOpParameters(data.path, JSON.parse(data.content));
+    } else if (data.action === 'updateCopilotStatus') {
+        updateCopilotStatus(data.isEnabled);
+    } else if (data.action === 'updateCopilotConfig') {
+        updateCopilotConfig(data.config);
     }
 }
+
+function updateCopilotConfig(config) {
+    ///console.log("Updating Copilot config:", config);
+    if (config.isEnabled) {
+        enableMonacopilot(monaco, editor, config);
+    } else {
+        disableMonacopilot(monaco, editor);
+    }
+}
+
+function updateCopilotStatus(isEnabled) {
+    ///console.log("Updating copilot status:", isEnabled);
+    try {
+        if (isEnabled) {
+            enableMonacopilot(monaco, editor);
+        } else {
+            disableMonacopilot(monaco, editor);
+        }
+        // Update TouchDesigner extension Copilot mode
+        if (touchDesignerExtension && touchDesignerExtension.setCopilotMode) {
+            touchDesignerExtension.setCopilotMode(isEnabled);
+        }
+    } catch (error) {
+        console.error("Error updating Copilot status:", error);
+    }
+}
+
+
+
 
 // Update editor content with data from DATs
 function updateDatContents(datContents) {
@@ -254,6 +313,7 @@ function changeLanguage(languageName, languageFile) {
                 editorModels[currentPath].language = languageName;
                 saveLanguagePreference(currentPath, languageName);
             }
+            updateMonacopilotLanguage(monaco, editor, languageName);
         }).catch(error => {
             console.error('Failed to load language:', error);
         });
@@ -264,6 +324,7 @@ function changeLanguage(languageName, languageFile) {
             editorModels[currentPath].language = languageName;
             saveLanguagePreference(currentPath, languageName);
         }
+        updateMonacopilotLanguage(monaco, editor, languageName);
     }
 }
 
