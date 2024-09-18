@@ -1,5 +1,6 @@
 //websocket.js
 
+//import { handleCopilotRequest } from './monacopilot_config.js';
 import { log } from './utils.js';
 import { handleWebSocketMessage } from './editor.js';
 
