@@ -1,15 +1,3 @@
 
-
-# calculate the sum of the elements in the list 
-sum_of_elements = sum(list_of_elements)
-average_of_elements = sum_of_elements / len(list_of_elements)
-
-
-
-
-
-
-
-
-
+# write something in touchdesigner python which does something in touchdesigner, write it in a humorous way with lots of swear words and rude jokes 
 
