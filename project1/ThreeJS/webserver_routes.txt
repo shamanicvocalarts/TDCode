@@ -1,0 +1,11 @@
+uri	operator	content-type
+/	editor_html	text/html
+/save-model	ModelOperations	application/json
+/stream-geometry	ModelOperations	application/json
+/websocket.js	websocket_js	application/javascript
+/utils.js	utils_js	application/javascript
+/editor_config.js	editor_config_js	application/javascript
+/python_language.js	languages/python	application/javascript
+/glsl_language.js	languages/glsl	application/javascript
+/touchdesigner.js	languages/touchdesigner	application/javascript
+/markdown_language.js	languages/markdown	application/javascript
