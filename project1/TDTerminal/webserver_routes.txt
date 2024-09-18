@@ -1,0 +1,11 @@
+uri	operator	content-type
+/	terminal_html	text/html
+/terminal.js	terminal_js	application/javascript
+/auth.js	auth_js	application/javascript
+/uiHelpers.js	uiHelpers_js	application/javascript
+/fileOperations.js	fileOperations_js	application/javascript
+/gitOperations.js	gitOperations_js	application/javascript
+/npmCommands.js	npmCommands_js	application/javascript
+/glsl_language.js	languages/glsl	application/javascript
+/touchdesigner.js	languages/touchdesigner	application/javascript
+/markdown_language.js	languages/markdown	application/javascript
