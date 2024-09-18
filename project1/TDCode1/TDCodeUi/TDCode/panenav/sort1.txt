@@ -1,0 +1,1 @@
+lc -d -l -T `tab("browsepath",0,0)`*
