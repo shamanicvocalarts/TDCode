@@ -1,0 +1,2 @@
+ifs(par("shorten/rowindexstart")>0,"<<",$V)
+$V
