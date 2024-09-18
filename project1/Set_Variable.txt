@@ -1,0 +1,4 @@
+import os 
+
+os.system("setx testVar test")
+
