@@ -1,0 +1,6 @@
+up	q
+down	r
+left	o
+right	p
+circle	^
+star	.
