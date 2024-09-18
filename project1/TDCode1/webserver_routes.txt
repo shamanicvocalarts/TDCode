@@ -1,0 +1,14 @@
+uri	operator	content-type
+/	editor_html	text/html
+/editor.js	editor_js	application/javascript
+/websocket.js	websocket_js	application/javascript
+/ui.js	ui_js	application/javascript
+/utils.js	utils_js	application/javascript
+/python_language.js	languages/python	application/javascript
+/glsl_language.js	languages/glsl	application/javascript
+/touchdesigner.js	languages/touchdesigner	application/javascript
+/editor_config.js	editor_config_js	application/javascript
+/monacopilot_config.js	monacopilot_config_js	application/javascript
+		
+		
+		
