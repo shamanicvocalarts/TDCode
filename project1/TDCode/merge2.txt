@@ -63,7 +63,6 @@ set_variables	/local/set_variables	local/set_variables	2
 perform	/perform	perform	1
 project1	/project1	project1	1
 text1	/project1/text1	project1/text1	2
-text2	/project1/text2	project1/text2	2
 TDCode	/project1/TDCode	project1/TDCode	2
 out1	/project1/TDCode/out1	project1/TDCode/out1	3
 sort1	/project1/TDCode/sort1	project1/TDCode/sort1	3
@@ -1784,7 +1783,6 @@ opfind1_callbacks2	/project1/TDCode/opfind1_callbacks2	project1/TDCode/opfind1_c
 webserver1_callbacks	/project1/TDCode/webserver1_callbacks	project1/TDCode/webserver1_callbacks	3
 keyboardin1_callbacks	/project1/TDCode/keyboardin1_callbacks	project1/TDCode/keyboardin1_callbacks	3
 monacopilot_config_js	/project1/TDCode/monacopilot_config_js	project1/TDCode/monacopilot_config_js	3
-noise1	/project1/noise1	project1/noise1	2
 TDCode1	/project1/TDCode1	project1/TDCode1	2
 out1	/project1/TDCode1/out1	project1/TDCode1/out1	3
 null1	/project1/TDCode1/null1	project1/TDCode1/null1	3
@@ -3751,18 +3749,6 @@ fileOperations_js	/project1/TDTerminal/fileOperations_js	project1/TDTerminal/fil
 opfind1_callbacks	/project1/TDTerminal/opfind1_callbacks	project1/TDTerminal/opfind1_callbacks	3
 opfind2_callbacks	/project1/TDTerminal/opfind2_callbacks	project1/TDTerminal/opfind2_callbacks	3
 webserver1_callbacks	/project1/TDTerminal/webserver1_callbacks	project1/TDTerminal/webserver1_callbacks	3
-virtualFile	/project1/virtualFile	project1/virtualFile	2
-out1	/project1/virtualFile/out1	project1/virtualFile/out1	3
-inPaths	/project1/virtualFile/inPaths	project1/virtualFile/inPaths	3
-vfsInfo	/project1/virtualFile/vfsInfo	project1/virtualFile/vfsInfo	3
-parexec1	/project1/virtualFile/parexec1	project1/virtualFile/parexec1	3
-docsHelper	/project1/virtualFile/docsHelper	project1/virtualFile/docsHelper	3
-parexec1	/project1/virtualFile/docsHelper/parexec1	project1/virtualFile/docsHelper/parexec1	4
-DocsHelper	/project1/virtualFile/docsHelper/DocsHelper	project1/virtualFile/docsHelper/DocsHelper	4
-parexec_PaletteComp	/project1/virtualFile/docsHelper/parexec_PaletteComp	project1/virtualFile/docsHelper/parexec_PaletteComp	4
-inPathsPar	/project1/virtualFile/inPathsPar	project1/virtualFile/inPathsPar	3
-VirtualFileExt	/project1/virtualFile/VirtualFileExt	project1/virtualFile/VirtualFileExt	3
-script1_callbacks	/project1/virtualFile/script1_callbacks	project1/virtualFile/script1_callbacks	3
 Set_Variable	/project1/Set_Variable	project1/Set_Variable	2
 TouchDesigner_Cheatsheet	/project1/TouchDesigner_Cheatsheet	project1/TouchDesigner_Cheatsheet	2
 out1	/ui/dialogs/bookmark_bar/TDCButton/out1	out1	1
