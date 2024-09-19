@@ -67,6 +67,8 @@ TDCode now integrates Monacopilot, providing intelligent code suggestions:
 - Support for TouchDesigner-specific code patterns and best practices
 - Real-time suggestions as you type
 
+for more information on monacopilot. visit https://github.com/arshad-yaseen/monacopilot
+
 ### Performance Optimizations
 - Lazy loading of large scripts
 - Efficient diff-based updates to TouchDesigner
@@ -76,4 +78,4 @@ TDCode now integrates Monacopilot, providing intelligent code suggestions:
 Developers can extend TDCode's capabilities:
 - Remove `TDCode/*` from the DAT Settings `excludepath` parameter to access and modify core functionality
 
-For more information on customizing and extending TDCode, please refer to the documentation or contact the development team.
+
