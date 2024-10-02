@@ -16,12 +16,13 @@ TDCode is a high-performance, integrated code editor component for TouchDesigner
 ## Installation
 1. Drag and drop TDCode into your project.
 2. TDCode will automatically initialize and integrate with your project.
-3. Press TDCode button in main panel, or press 'Alt+Shift+T' to open TDCodes editor panel
+3. Press TDCode button in main panel, or press 'Ctrl+T' to open TDCodes editor panel
 4. No additional setup or configuration is required.
 
 ## Navigating DATs and OPs
-- Use `Alt+Shift+S` to open the DAT selection dropdown.
-- Use `Alt+Shift+O` to open the OP selection dropdown.
+- Use 'Alt+Shift+S' to open the DAT selection dropdown.
+- Use 'Alt+Shift+O' to open the OP selection dropdown.
+- Use 'Alt+Shift+N' to open the Navigation Tree.
 - Type in the dropdown search field to quickly filter and find your target DAT/OP.
 
 ## Editing Code
@@ -46,10 +47,10 @@ TDCode automatically detects and applies appropriate syntax highlighting. Suppor
 - JavaScript / TypeScript
 
 ## Keyboard Shortcuts
-- `Ctrl+F`: Find
-- `Ctrl+H`: Replace
-- `Alt+Up/Down`: Move line up/down
-- `Ctrl+/`: Toggle line comment
+- 'Ctrl+F': Find
+- 'Ctrl+H': Replace
+- 'Alt+Up/Down': Move line up/down
+- 'Ctrl+/': Toggle line comment
 
 ## Advanced Features
 
@@ -76,6 +77,6 @@ for more information on monacopilot. visit https://github.com/arshad-yaseen/mona
 
 ## Extending TDCode
 Developers can extend TDCode's capabilities:
-- Remove `TDCode/*` from the DAT Settings `excludepath` parameter to access and modify core functionality
+- Remove 'TDCode/*' from the DAT Settings 'excludepath' parameter to access and modify core functionality
 
 
