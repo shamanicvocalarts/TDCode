@@ -1,0 +1,36 @@
+// ui_events.js
+import { handleUIEvent } from './editor.js';
+
+function setupLanguageListener() {
+    document.getElementById('language-select').addEventListener('change', function(e) {
+        var languageName = e.target.value;
+        var languageFile = e.target.options[e.target.selectedIndex].getAttribute('data-language-file');
+        handleUIEvent('changeLanguage', { languageName, languageFile });
+    });
+}
+
+function setupDatOpListeners() {
+    document.getElementById('dats-select').addEventListener('change', function(e) {
+        handleUIEvent('switchDAT', { path: e.target.value });
+    });
+
+    document.getElementById('ops-select').addEventListener('change', function(e) {
+        handleUIEvent('switchOP', { path: e.target.value });
+    });
+}
+
+function setupKeyboardShortcuts() {
+    document.addEventListener('keydown', function(e) {
+        if (e.altKey && e.shiftKey) {
+            if (e.key === 'S') {
+                e.preventDefault();
+                toggleDropdown('dats-select');
+            } else if (e.key === 'O') {
+                e.preventDefault();
+                toggleDropdown('ops-select');
+            }
+        }
+    });
+}
+
+export { setupLanguageListener, setupDatOpListeners, setupKeyboardShortcuts };
