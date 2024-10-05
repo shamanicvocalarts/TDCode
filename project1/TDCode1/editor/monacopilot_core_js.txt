@@ -1,0 +1,66 @@
+import { Copilot, registerCompletion } from 'https://unpkg.com/monacopilot@0.11.5/build/index.mjs';
+import { log } from "./utils.js";
+import { getStateValue, globalState } from "./editor.js";
+import { setupOpenRouter } from './monacopilot_providers.js';
+import { createCustomPrompt } from './monacopilot_prompts.js';
+
+let copilotInstance = null;
+let isCopilotEnabled = false;
+let touchDesignerExtension;
+let isInitializationComplete = false;
+
+export function setIsCopilotEnabled(value) {
+    isCopilotEnabled = value;
+    console.log(`isCopilotEnabled set to: ${isCopilotEnabled}`);
+}
+
+export function getIsCopilotEnabled() {
+    console.log(`Current isCopilotEnabled value: ${isCopilotEnabled}`);
+    return isCopilotEnabled;
+}
+
+function safeDispose(instance) {
+    if (instance && typeof instance.dispose === 'function') {
+        instance.dispose();
+    } else {
+        log("No dispose method available, performing alternative cleanup");
+        instance = null;
+    }
+}
+
+async function getApiKey(provider) {
+    try {
+        const response = await fetch(`/api/getApiKey?provider=${encodeURIComponent(provider)}`);
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Failed to fetch API key: ${response.statusText}. Error: ${errorText}`);
+        }
+        return response.json();
+    } catch (error) {
+        console.error("Error in getApiKey:", error);
+        throw error;
+    }
+}
+
+export async function initializeMonacopilot(monaco, editor, language, options = {}) {
+    // ... (rest of the initializeMonacopilot function)
+}
+
+export function enableMonacopilot(monaco, editor, config = {}) {
+    // ... (rest of the enableMonacopilot function)
+}
+
+export function disableMonacopilot(monaco, editor) {
+    // ... (rest of the disableMonacopilot function)
+}
+
+export function updateMonacopilotLanguage(monaco, editor, language, options = {}) {
+    // ... (rest of the updateMonacopilotLanguage function)
+}
+
+// ... (rest of the helper functions)
+
+// Ensure global state is initialized before calling initializeMonacopilot
+window.addEventListener('load', function () {
+    // ... (rest of the load event listener)
+});
