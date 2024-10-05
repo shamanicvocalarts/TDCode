@@ -1,0 +1,197 @@
+//chat.js
+
+import { log } from './uiHelpers.js';
+
+let chatHistory = [];
+
+let previousCommandArgs = null;
+
+
+
+
+export async function handleChatCommand(fullCommand) {
+    let commandWithoutChat = fullCommand.replace(/^chat\s+/, '');
+
+    let model = null;
+    let useHistory = false;
+    let datPaths = [];
+    let opPaths = [];
+    let message = '';
+    let verbose = false;
+    let systemPrompt = null;
+
+    // Check for '*' at the start of the command
+    if (commandWithoutChat.startsWith('*')) {
+        if (!previousCommandArgs) {
+            throw new Error('No previous command to reference');
+        }
+        let newPart = commandWithoutChat.replace(/^\*\s*/, '');
+        commandWithoutChat = mergeCommands(previousCommandArgs, newPart);
+    }
+
+    // Check for verbose flag
+    if (commandWithoutChat.includes('-v')) {
+        verbose = true;
+        commandWithoutChat = commandWithoutChat.replace(/-v/, '').trim();
+    }
+
+    // Check for history flag
+    if (commandWithoutChat.includes('-h') || commandWithoutChat.includes('-history')) {
+        useHistory = true;
+        commandWithoutChat = commandWithoutChat.replace(/-h|-history/, '').trim();
+    }
+
+    // Check for system prompt
+    let systemPromptMatch = commandWithoutChat.match(/-s\s*\[(.*?)\]/);
+    if (systemPromptMatch) {
+        systemPrompt = systemPromptMatch[1];
+        commandWithoutChat = commandWithoutChat.replace(/-s\s*\[.*?\]/, '').trim();
+    }
+
+    // Check for paths
+    let pathMatch = commandWithoutChat.match(/-p\s*\[(.*?)\]/);
+    if (pathMatch) {
+        let paths = pathMatch[1].split(',').map(path => path.trim());
+        datPaths = paths.filter(path => path.endsWith('.dat'));
+        opPaths = paths.filter(path => path.endsWith('.op'));
+        commandWithoutChat = commandWithoutChat.replace(/-p\s*\[.*?\]/, '').trim();
+    }
+
+    // Find the index of the first colon that's not part of the model address
+    let colonIndex = commandWithoutChat.indexOf(':');
+    if (colonIndex !== -1) {
+        let preMsgPart = commandWithoutChat.slice(0, colonIndex).trim();
+        message = commandWithoutChat.slice(colonIndex + 1).trim();
+
+        // Check for model specification
+        if (preMsgPart) {
+            model = preMsgPart;
+        }
+    } else {
+        throw new Error('Invalid chat command format. Expected a colon to separate model from message.');
+    }
+
+    if (!message) {
+        throw new Error('No message provided');
+    }
+
+    // Log verbose information if -v flag is present
+    if (verbose) {
+        logVerbose(model, message, useHistory, datPaths, opPaths, systemPrompt);
+    }
+
+    // Store the current command args for future use
+    previousCommandArgs = `${verbose ? '-v ' : ''}${useHistory ? '-h ' : ''}${systemPrompt ? `-s [${systemPrompt}] ` : ''}${datPaths.length > 0 || opPaths.length > 0 ? `-p [${[...datPaths, ...opPaths].join(',')}] ` : ''}${model || ''}`;
+
+    let messages = useHistory ? [...chatHistory, { role: "user", content: message }] : [{ role: "user", content: message }];
+
+    try {
+        const response = await fetch('/api/chat', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ model, messages, paths: [...datPaths, ...opPaths], systemPrompt }),
+        });
+
+        if (response.ok) {
+            log('Request accepted. Waiting for response...', 'info');
+            pollForChatResponse(message, useHistory);
+        } else {
+            const errorText = await response.text();
+            log(`Error: ${response.statusText}. ${errorText}`, 'error');
+        }
+    } catch (error) {
+        log(`Error: ${error.message}`, 'error');
+    }
+}
+
+function logVerbose(model, message, useHistory, datPaths, opPaths, systemPrompt) {
+    log(`Model: ${model || 'Default'}`, 'info');
+    log(`Message: ${message}`, 'info');
+    log(`Use History: ${useHistory}`, 'info');
+    log(`DAT Paths: ${datPaths.join(', ') || 'None'}`, 'info');
+    log(`OP Paths: ${opPaths.join(', ') || 'None'}`, 'info');
+    log(`System Prompt: ${systemPrompt || 'Default'}`, 'info');
+}
+
+
+
+function mergeCommands(previousArgs, newCommand) {
+    let mergedCommand = previousArgs;
+
+    // Override history flag if present in new command
+    if (newCommand.includes('-h') || newCommand.includes('-history')) {
+        mergedCommand = '-h ' + mergedCommand.replace(/-h|-history/, '').trim();
+    }
+
+    // Override paths if present in new command
+    let newPathMatch = newCommand.match(/-p\s*\[(.*?)\]/);
+    if (newPathMatch) {
+        mergedCommand = mergedCommand.replace(/-p\s*\[.*?\]/, '').trim();
+        mergedCommand += ` -p [${newPathMatch[1]}]`;
+    }
+
+    // Add the new message and potential new model
+    let colonIndex = newCommand.indexOf(':');
+    if (colonIndex !== -1) {
+        let newModelPart = newCommand.slice(0, colonIndex).trim();
+        let newMessagePart = newCommand.slice(colonIndex + 1).trim();
+
+        if (newModelPart) {
+            // Replace the model in mergedCommand
+            mergedCommand = mergedCommand.replace(/\S+$/, newModelPart);
+        }
+
+        mergedCommand += `: ${newMessagePart}`;
+    } else {
+        mergedCommand += ` ${newCommand}`;
+    }
+
+    return mergedCommand.trim();
+}
+
+
+export function updateChatHistory(userMessage, aiResponse) {
+    if (chatHistory.length >= 10) { // Limit history to last 5 exchanges
+        chatHistory = chatHistory.slice(-8);
+    }
+    chatHistory.push({ role: "user", content: userMessage });
+    chatHistory.push({ role: "assistant", content: aiResponse });
+}
+
+export function pollForChatResponse(userMessage, useHistory) {
+    const pollInterval = setInterval(async () => {
+        try {
+            const response = await fetch('/api/chat_result');
+            if (response.ok) {
+                const result = await response.json();
+                if (result.status === 'completed') {
+                    clearInterval(pollInterval);
+                    log(`AI Response: ${result.response}`, 'output');
+                    if (useHistory) {
+                        updateChatHistory(userMessage, result.response);
+                    }
+                } else if (result.status === 'error') {
+                    clearInterval(pollInterval);
+                    log(`Error: ${result.error}`, 'error');
+                }
+            } else {
+                clearInterval(pollInterval);
+                log(`Error polling for result: ${response.statusText}`, 'error');
+            }
+        } catch (error) {
+            clearInterval(pollInterval);
+            log(`Error polling for result: ${error.message}`, 'error');
+        }
+    }, 1000);
+}
+
+
+export function getChatHistory() {
+    return chatHistory;
+}
+
+export function clearChatHistory() {
+    chatHistory = [];
+}
