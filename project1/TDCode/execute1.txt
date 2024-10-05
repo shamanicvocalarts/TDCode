@@ -16,28 +16,37 @@ def onStart():
     except Exception as e:
         print(f"Error deleting TDCode pane: {str(e)}")
     
-    # Now, call createUI with a delay
+    # Add the new function call
+    check_and_copy_shortcuts()
+    op("timer4").par.start.pulse()
+    
+
     op("createUI").run(delayFrames = 30)
     return
 
 def onCreate():
-	op("createUI").run()
-	return 
+    check_and_copy_shortcuts()
+    op("createUI").run()
+    op("timer3").par.start.pulse()
+    op("timer4").par.start.pulse()
+
+    
+    return
 
 def onExit():
     return
 
 def onFrameStart(frame):
-	return
+    return
 
 def onFrameEnd(frame):
-	return
+    return
 
 def onPlayStateChange(state):
-	return
+    return
 
 def onDeviceChange():
-	return
+    return
 
 def onProjectPreSave():
     print("Starting onProjectPreSave")
@@ -83,6 +92,32 @@ def onProjectPreSave():
 
 
 def onProjectPostSave():
-	return
+    return
+
+def check_and_copy_shortcuts():
+    # Check if /local exists
+    local_op = op('/local')
+    if not local_op:
+        print("Error: /local not found")
+        return
+
+    # Check if shortcutsOld exists in /local
+    if not local_op.op('shortcutsOld'):
+        # If shortcuts exists in /local, rename it to shortcutsOld
+        local_shortcuts = local_op.op('shortcuts')
+        if local_shortcuts:
+            local_shortcuts.name = 'shortcutsOld'
+            print("Renamed existing shortcuts in /local to shortcutsOld")
+        
+        # Copy shortcuts to /local
+        current_shortcuts = op('shortcuts')
+        if current_shortcuts:
+            new_shortcuts = local_op.copy(current_shortcuts)
+            new_shortcuts.name = 'shortcuts'
+            print("Copied shortcuts to /local")
+        else:
+            print("Error: shortcuts DAT not found")
+    else:
+        print("shortcutsOld already exists in /local, no action taken")
 
 	
