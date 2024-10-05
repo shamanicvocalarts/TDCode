@@ -1,14 +1,19 @@
 uri	operator	content-type
-/	editor_html	text/html
-/editor.js	editor_js	application/javascript
-/websocket.js	websocket_js	application/javascript
-/ui.js	ui_js	application/javascript
-/utils.js	utils_js	application/javascript
+/	editor/editor_html	text/html
+/editor.js	editor/editor_js	application/javascript
+/websocket.js	editor/websocket_js	application/javascript
+/ui.js	editor/ui_js	application/javascript
+/utils.js	editor/utils_js	application/javascript
 /python_language.js	languages/python	application/javascript
 /glsl_language.js	languages/glsl	application/javascript
 /touchdesigner.js	languages/touchdesigner	application/javascript
-/editor_config.js	editor_config_js	application/javascript
-/monacopilot_config.js	monacopilot_config_js	application/javascript
-		
-		
-		
+/editor_config.js	editor/editor_config_js	application/javascript
+/monacopilot_config.js	editor/monacopilot_config_js	application/javascript
+/terminal	TDTerminal/terminal_html	text/html
+/terminal.js	TDTerminal/terminal_js	application/javascript
+/auth.js	TDTerminal/auth_js	application/javascript
+/uiHelpers.js	TDTerminal/uiHelpers_js	application/javascript
+/fileOperations.js	TDTerminal/fileOperations_js	application/javascript
+/gitOperations.js	TDTerminal/gitOperations_js	application/javascript
+/npmCommands.js	TDTerminal/npmCommands_js	application/javascript
+/chat.js	TDTerminal/chat_js	application/javascript
