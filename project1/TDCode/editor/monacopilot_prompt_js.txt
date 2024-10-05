@@ -1,0 +1,64 @@
+import { log } from "./utils.js";
+
+function getSuggestions() {
+    if (!touchDesignerExtension || typeof touchDesignerExtension.getAllSuggestions !== 'function') {
+        console.warn("TouchDesigner extension not loaded or getAllSuggestions not available");
+        return [];
+    }
+    const suggestions = touchDesignerExtension.getAllSuggestions();
+    console.log("Retrieved suggestions:", suggestions.length);
+    return suggestions;
+}
+
+export function createCustomPrompt({ language, textBeforeCursor, textAfterCursor }) {
+    const prefix = extractPrefix(textBeforeCursor);
+    const currentSuggestions = getSuggestions();
+    const filteredSuggestions = filterSuggestionsByPrefix(currentSuggestions, prefix);
+
+    const formattedSuggestions = filteredSuggestions.map(suggestion => {
+        const label = typeof suggestion === 'object' ? suggestion.label : suggestion;
+        return {
+            suggestion: label.slice(prefix.length),
+            context: label
+        };
+    });
+
+    const promptSuggestions = formattedSuggestions.map(s =>
+        `suggestion: "${s.suggestion}"`
+    ).join(' ');
+
+    const prompt = {
+        system: `You are an AI assistant specialized in writing ${language} code for TouchDesigner projects. 
+                 You have access to the following TouchDesigner-specific suggestions provided in the suggestion section:
+                 ${promptSuggestions}`,
+        user: `Complete the following ${language} code:
+${textBeforeCursor}
+// Cursor position
+${textAfterCursor}
+Provide only the code completion without additional comments. Use the TouchDesigner-specific suggestions provided in the system message to inform your completion.`
+    };
+
+    log("Raw prompt object:", prompt);
+    return prompt;
+}
+
+function extractPrefix(textBeforeCursor) {
+    const words = textBeforeCursor.split(/\s+/);
+    const prefix = words.length > 0 ? words[words.length - 1] : '';
+    log("Extracted prefix from textBeforeCursor:", prefix);
+    return prefix;
+}
+
+function filterSuggestionsByPrefix(suggestions, prefix) {
+    log("Filtering suggestions with prefix:", prefix);
+    const filtered = suggestions.filter(suggestion => {
+        if (typeof suggestion === 'string') {
+            return suggestion.toLowerCase().startsWith(prefix.toLowerCase());
+        } else if (typeof suggestion === 'object' && suggestion.label) {
+            return suggestion.label.toLowerCase().startsWith(prefix.toLowerCase());
+        }
+        return false;
+    });
+    log("Filtered suggestions count:", filtered.length);
+    return filtered.slice(0, 20);  // Limit to 20 suggestions
+}
