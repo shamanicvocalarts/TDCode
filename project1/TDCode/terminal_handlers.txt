@@ -1,0 +1,596 @@
+#terminal_handlers.py CURRENT CODE 
+import json
+import os
+import subprocess
+import requests
+import asyncio
+
+from terminal_utils import (get_op_content, update_op_content, get_absolute_path, is_git_ignored, create_touchdesigner_components, delete_touchdesigner_components, open_url, cell_to_str, get_multiple_op_contents,)
+
+from webserver_dat_op_handlers import (SendContentToEditor, get_dat_hash, CheckDatContentChanged, SendDatContent, UpdateDatsListInEditor, UpdateOpsListInEditor, GetOpParametersAsJSON, UpdateOpParameters, onOperatorParameterChange)
+
+chat_result = None
+is_processing = False
+
+def handle_file_content(request, response):
+    method = request['method']
+    if method == 'GET':
+        op_path = request['pars'].get('path')
+        if op_path:
+            try:
+                print(f"GET request for operator path: {op_path}")
+                content = get_op_content(op_path)
+                response['statusCode'] = 200
+                response['statusReason'] = 'OK'
+                response['data'] = content
+                response['content-type'] = 'text/plain'
+            except Exception as e:
+                response['statusCode'] = 404
+                response['statusReason'] = 'Not Found'
+                response['data'] = str(e)
+                print(f"Error in GET /api/file_content: {str(e)}")
+        else:
+            response['statusCode'] = 400
+            response['statusReason'] = 'Bad Request'
+            response['data'] = 'Missing path parameter'
+    elif method == 'POST':
+        try:
+            content = json.loads(request['data'])
+            op_path = content.get('path')
+            file_content = content.get('content')
+            if op_path and file_content is not None:
+                print(f"POST request to update operator at path: {op_path}")
+                update_op_content(op_path, file_content)
+                response['statusCode'] = 200
+                response['statusReason'] = 'OK'
+                response['data'] = 'File updated successfully'
+            else:
+                response['statusCode'] = 400
+                response['statusReason'] = 'Bad Request'
+                response['data'] = 'Missing path or content in request'
+        except Exception as e:
+            response['statusCode'] = 500
+            response['statusReason'] = 'Internal Server Error'
+            response['data'] = f'Error updating file: {str(e)}'
+            print(f"Error in POST /api/file_content: {str(e)}")
+    return response
+
+def handle_dats(request, response):
+    method = request['method']
+    if method == 'GET':
+        try:
+            dats_op = op('dats')
+            if not dats_op:
+                raise Exception("'dats' operator not found")
+            
+            dats_data = []
+            for row in dats_op.rows()[1:]:  # Skip header row
+                if len(row) >= 4:
+                    name, path, rel_path, tags = [cell_to_str(cell) for cell in row[:4]]
+                    dats_data.append({
+                        'name': name,
+                        'path': path,
+                        'relPath': rel_path,
+                        'tags': tags
+                    })
+                else:
+                    print(f"Warning: Skipping row with insufficient data: {row}")
+            
+            response['statusCode'] = 200
+            response['statusReason'] = 'OK'
+            response['data'] = json.dumps(dats_data)
+            response['content-type'] = 'application/json'
+        except Exception as e:
+            print(f"Error in /api/dats: {str(e)}")
+            response['statusCode'] = 500
+            response['statusReason'] = 'Internal Server Error'
+            response['data'] = f'Error fetching dats: {str(e)}'
+    else:
+        response['statusCode'] = 405
+        response['statusReason'] = 'Method Not Allowed'
+        response['data'] = 'Only GET method is allowed for this endpoint'
+    return response
+
+def handle_absolute_path(request, response):
+    method = request['method']
+    if method == 'GET':
+        path = request['pars'].get('path')
+        if path:
+            try:
+                absolute_path = get_absolute_path(path)
+                response['statusCode'] = 200
+                response['statusReason'] = 'OK'
+                response['data'] = absolute_path
+                response['content-type'] = 'text/plain'
+            except Exception as e:
+                response['statusCode'] = 404
+                response['statusReason'] = 'Not Found'
+                response['data'] = str(e)
+        else:
+            response['statusCode'] = 400
+            response['statusReason'] = 'Bad Request'
+            response['data'] = 'Missing path parameter'
+    return response
+
+def handle_git_ignore(request, response):
+    method = request['method']
+    if method == 'POST':
+        try:
+            content = json.loads(request['data'])
+            op_path = content.get('path')
+            should_ignore = content.get('ignore')
+            print(f"Received git-ignore request for path: {op_path}")
+            if op_path is not None and should_ignore is not None:
+                target_op = op(op_path)
+                if target_op:
+                    print(f"Found operator: {target_op}")
+                    current_tags = set(target_op.tags)
+                    print(f"Current tags: {current_tags}")
+                    if should_ignore:
+                        current_tags.add('git-ignore')
+                    else:
+                        current_tags.discard('git-ignore')
+                    target_op.tags = list(current_tags)
+                    print(f"Updated tags: {target_op.tags}")
+                    
+                    # Update the dats table
+                    dats_op = op('dats')
+                    for row in dats_op.rows()[1:]:  # Skip header row
+                        if row[1].val == op_path:  # Assuming the path is in the second column
+                            row[3] = ' '.join(target_op.tags)
+                            break
+                    
+                    response['statusCode'] = 200
+                    response['statusReason'] = 'OK'
+                    response['data'] = f'Updated git-ignore status for {op_path}'
+                else:
+                    print(f"Operator not found: {op_path}")
+                    response['statusCode'] = 404
+                    response['statusReason'] = 'Not Found'
+                    response['data'] = f'Operator not found: {op_path}'
+            else:
+                response['statusCode'] = 400
+                response['statusReason'] = 'Bad Request'
+                response['data'] = 'Missing path or ignore status'
+        except Exception as e:
+            print(f"Error in git-ignore: {str(e)}")
+            response['statusCode'] = 500
+            response['statusReason'] = 'Internal Server Error'
+            response['data'] = f'Error updating git-ignore status: {str(e)}'
+    return response
+
+def handle_is_git_ignored(request, response):
+    method = request['method']
+    if method == 'GET':
+        op_path = request['pars'].get('path')
+        if op_path:
+            is_ignored = is_git_ignored(op_path)
+            response['statusCode'] = 200
+            response['statusReason'] = 'OK'
+            response['data'] = str(is_ignored).lower()
+        else:
+            response['statusCode'] = 400
+            response['statusReason'] = 'Bad Request'
+            response['data'] = 'Missing path parameter'
+    return response
+
+def handle_cd(request, response):
+    method = request['method']
+    if method == 'POST':
+        try:
+            new_path = json.loads(request['data'])['path']
+            print(f"Received CD request for path: {new_path}")
+            target_op = op(new_path)
+            if target_op and target_op.isCOMP:
+                print(f"Valid path found: {new_path}")
+                response['statusCode'] = 200
+                response['statusReason'] = 'OK'
+                response['data'] = new_path
+            else:
+                print(f"Invalid path: {new_path}")
+                response['statusCode'] = 404
+                response['statusReason'] = 'Not Found'
+                response['data'] = f"Invalid path: {new_path}"
+        except Exception as e:
+            print(f"Error in CD: {str(e)}")
+            response['statusCode'] = 500
+            response['statusReason'] = 'Internal Server Error'
+            response['data'] = str(e)
+    return response
+
+def handle_ls(request, response):
+    method = request['method']
+    if method == 'GET':
+        try:
+            current_path = request['pars']['path']
+            recursive = request['pars'].get('recursive', 'false').lower() == 'true'
+            depth = int(request['pars'].get('depth', '-1'))
+            
+            def list_recursively(path, current_depth):
+                parent_op = op(path)
+                if parent_op and parent_op.isCOMP:
+                    children = []
+                    for child in parent_op.children:
+                        child_info = {'name': child.name, 'type': child.type, 'path': child.path}
+                        if child.isCOMP and (depth == -1 or current_depth < depth):
+                            child_info['children'] = list_recursively(child.path, current_depth + 1)
+                        children.append(child_info)
+                    return children
+                return []
+
+            result = list_recursively(current_path, 0)
+            
+            response['statusCode'] = 200
+            response['statusReason'] = 'OK'
+            response['data'] = json.dumps(result)
+            response['content-type'] = 'application/json'
+        except Exception as e:
+            response['statusCode'] = 500
+            response['statusReason'] = 'Internal Server Error'
+            response['data'] = str(e)
+    return response
+
+def handle_create_operator(request, response):
+    method = request['method']
+    if method == 'POST':
+        try:
+            data = json.loads(request['data'])
+            parent_path = data['parent_path']
+            op_type = data['type']
+            name = data['name']
+            print(f"Creating operator: type={op_type}, name={name}, parent_path={parent_path}")
+            parent_op = op(parent_path)
+            if parent_op and parent_op.isCOMP:
+                new_op = parent_op.create(op_type, name)
+                response['statusCode'] = 200
+                response['statusReason'] = 'OK'
+                response['data'] = f"Created {op_type} operator: {new_op.path}"
+            else:
+                response['statusCode'] = 404
+                response['statusReason'] = 'Not Found'
+                response['data'] = f"Invalid parent path: {parent_path}"
+        except Exception as e:
+            print(f"Error creating operator: {str(e)}")
+            response['statusCode'] = 500
+            response['statusReason'] = 'Internal Server Error'
+            response['data'] = str(e)
+    return response
+
+def handle_delete_operator(request, response):
+    method = request['method']
+    if method == 'POST':
+        try:
+            data = json.loads(request['data'])
+            parent_path = data['parent_path']
+            name = data['name']
+            parent_op = op(parent_path)
+            if parent_op and parent_op.isCOMP:
+                target_op = parent_op.op(name)
+                if target_op:
+                    target_op.destroy()
+                    response['statusCode'] = 200
+                    response['statusReason'] = 'OK'
+                    response['data'] = f"Deleted operator: {name}"
+                else:
+                    response['statusCode'] = 404
+                    response['statusReason'] = 'Not Found'
+                    response['data'] = f"Operator not found: {name}"
+            else:
+                response['statusCode'] = 404
+                response['statusReason'] = 'Not Found'
+                response['data'] = f"Invalid parent path: {parent_path}"
+        except Exception as e:
+            response['statusCode'] = 500
+            response['statusReason'] = 'Internal Server Error'
+            response['data'] = str(e)
+    return response
+
+def handle_npm_command(request, response):
+    method = request['method']
+    if method == 'POST':
+        try:
+            data = json.loads(request['data'])
+            command = data['command']
+            relative_directory = data['directory']
+            
+            full_path = os.path.normpath(os.path.join(project.folder, relative_directory.lstrip('/')))
+            
+            print(f"Executing npm command: npm {command} in directory: {full_path}")
+            
+            process = subprocess.Popen(f'cd "{full_path}" && npm {command}', 
+                                       shell=True, 
+                                       stdout=subprocess.PIPE, 
+                                       stderr=subprocess.PIPE,
+                                       text=True)
+            stdout, stderr = process.communicate()
+            
+            print(f"npm stdout: {stdout}")
+            print(f"npm stderr: {stderr}")
+            
+            if process.returncode == 0:
+                response['statusCode'] = 200
+                response['statusReason'] = 'OK'
+                response['data'] = f"Command output:\n{stdout}\nError output:\n{stderr}"
+                
+                if command.startswith('uninstall'):
+                    package_name = command.split()[1]
+                    delete_touchdesigner_components(full_path, package_name)
+                else:
+                    create_touchdesigner_components(full_path)
+            else:
+                response['statusCode'] = 500
+                response['statusReason'] = 'npm command failed'
+                response['data'] = f"npm command failed with return code {process.returncode}.\nOutput: {stdout}\nError: {stderr}"
+            
+        except Exception as e:
+            response['statusCode'] = 500
+            response['statusReason'] = 'Internal Server Error'
+            response['data'] = str(e)
+            print(f"Error executing npm command: {str(e)}")
+    else:
+        response['statusCode'] = 405
+        response['statusReason'] = 'Method Not Allowed'
+        response['data'] = 'Only POST method is allowed for this endpoint'
+    return response
+
+def handle_open_url(request, response):
+    method = request['method']
+    if method == 'POST':
+        try:
+            data = json.loads(request['data'])
+            url = data.get('url')
+            if url:
+                open_url(url)
+                response['statusCode'] = 200
+                response['statusReason'] = 'OK'
+                response['data'] = 'URL opened successfully'
+            else:
+                response['statusCode'] = 400
+                response['statusReason'] = 'Bad Request'
+                response['data'] = 'Missing URL parameter'
+        except Exception as e:
+            response['statusCode'] = 500
+            response['statusReason'] = 'Internal Server Error'
+            response['data'] = f'Error opening URL: {str(e)}'
+    return response
+
+def handle_create_touchdesigner_components(request, response):
+    method = request['method']
+    if method == 'POST':
+        try:
+            data = json.loads(request['data'])
+            relative_directory = data['directory']
+            
+            full_path = os.path.normpath(os.path.join(project.folder, relative_directory.lstrip('/')))
+            
+            create_touchdesigner_components(full_path)
+            
+            response['statusCode'] = 200
+            response['statusReason'] = 'OK'
+            response['data'] = f"TouchDesigner components created for: {full_path}"
+        except Exception as e:
+            response['statusCode'] = 500
+            response['statusReason'] = 'Internal Server Error'
+            response['data'] = f"Error creating TouchDesigner components: {str(e)}"
+    return response
+
+async def async_chat_request(url, headers, payload):
+    global chat_result, is_processing
+    loop = asyncio.get_event_loop()
+    is_processing = True
+    print("Processing chat request...")
+    try:
+        response = await loop.run_in_executor(None, lambda: requests.post(url, headers=headers, json=payload))
+        chat_result = (response.json(), response.status_code)
+        print("Chat result received.")
+    except Exception as e:
+        chat_result = ({"error": str(e)}, 500)
+        print(f"Error in chat request: {str(e)}")
+    finally:
+        is_processing = False
+
+def handle_chat(request, response, op_parameters=None, dat_contents=None):
+    global chat_result, is_processing
+    method = request['method']
+    if method == 'POST':
+        try:
+            data = json.loads(request['data'])
+            messages = data.get('messages', [])
+            model = data.get('model')
+            paths = data.get('paths', [])
+            client_system_prompt = data.get('systemPrompt')
+            api_key = os.getenv('OPENROUTER_API_KEY')
+
+            if not api_key:
+                raise Exception("OpenRouter API key not found. Please set the OPENROUTER_API_KEY environment variable.")
+
+            if not messages:
+                raise Exception("No messages provided")
+
+            if not model:
+                model = parent().par.Chatmodel.eval()
+
+            # Handle system prompt
+            if client_system_prompt:
+                messages.insert(0, {"role": "system", "content": client_system_prompt})
+            elif parent().par.Enablesystemprompt.eval():
+                system_prompt = parent().par.Systemprompt.eval()
+                messages.insert(0, {"role": "system", "content": system_prompt})
+
+            # Handle OP parameters
+            op_paths = [p for p in paths if p.lower().endswith('.op')]  
+            op_parameters = {}
+            for path in op_paths:
+                op_response = handle_chat_op({'data': json.dumps({'paths': [path]})}, {})
+                op_parameters.update(json.loads(op_response['data']))
+
+            if op_parameters:  
+                op_context = "\n".join([f"{path}:\n{params}" for path, params in op_parameters.items()])
+                messages.insert(1 if messages[0]['role'] == 'system' else 0, {"role": "system", "content": f"Operator parameters:\n{op_context}"})
+
+            # Handle DAT contents
+            dat_paths = [p for p in paths if p.lower().endswith('.dat')]
+            dat_contents = {}  
+            for path in dat_paths:
+                dat_response = handle_chat_dat({'data': json.dumps({'paths': [path]})}, {}) 
+                dat_contents.update(json.loads(dat_response['data']))
+
+            if dat_contents:
+                dat_context = "\n".join([f"{path}:\n{content}" for path, content in dat_contents.items()]) 
+                messages.insert(1 if messages[0]['role'] == 'system' else 0, {"role": "system", "content": f"DAT contents:\n{dat_context}"})
+
+            print(f"Sending request to OpenRouter API:")
+            print(f"Model: {model}")
+            print(f"System Prompt: {'Yes' if messages[0]['role'] == 'system' else 'No'}")
+            print(f"Number of messages: {len(messages)}")
+            print(f"Paths: {paths}")
+            print(f"Operator parameters: {'Yes' if op_parameters else 'No'}")
+            print(f"DAT contents: {'Yes' if dat_contents else 'No'}")
+
+            url = "https://openrouter.ai/api/v1/chat/completions"
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+                "HTTP-Referer": "https://your-site-url.com",
+                "X-Title": "Your App Name"
+            }
+
+            payload = {
+                "model": model,
+                "messages": messages
+            }
+
+            chat_result = None
+            is_processing = True
+
+            coroutines = [async_chat_request(url, headers, payload)]
+            op.TDAsyncIO.Run(coroutines)
+
+            print("Chat request sent. Waiting for response...")
+
+            response['statusCode'] = 202
+            response['statusReason'] = 'Accepted'
+            response['data'] = json.dumps({"message": "Request is being processed asynchronously"})
+
+        except Exception as e:
+            print(f"Error handling chat request: {str(e)}")
+            response['statusCode'] = 500
+            response['statusReason'] = 'Internal Server Error'
+            response['data'] = json.dumps({
+                "status": "error",
+                "error": str(e)
+            })
+    else:
+        response['statusCode'] = 405
+        response['statusReason'] = 'Method Not Allowed'
+        response['data'] = 'Only POST method is allowed for this endpoint'
+
+    return response
+
+
+def handle_chat_result(request, response):
+    global chat_result, is_processing
+    if is_processing:
+        response['statusCode'] = 202
+        response['statusReason'] = 'Accepted'
+        response['data'] = json.dumps({
+            "status": "processing"
+        })
+    elif chat_result is not None:
+        response_data, status_code = chat_result
+        if status_code == 200:
+            response['statusCode'] = 200
+            response['statusReason'] = 'OK'
+            response['data'] = json.dumps({
+                "status": "completed",
+                "response": response_data['choices'][0]['message']['content']
+            })
+        else:
+            response['statusCode'] = status_code
+            response['statusReason'] = 'Error'
+            response['data'] = json.dumps({
+                "status": "error",
+                "error": "API request failed: " + str(response_data.get('error', 'Unknown error'))
+            })
+        chat_result = None  # Reset chat_result after retrieving it
+    else:
+        response['statusCode'] = 204
+        response['statusReason'] = 'No Content'
+        response['data'] = json.dumps({
+            "status": "no_result",
+            "message": "No chat result available"
+        })
+    return response
+
+
+def handle_chat_op(request, response):
+    try:
+        data = json.loads(request['data'])
+        paths = data['paths']
+
+        print(f"Received paths: {paths}")
+        
+        op_parameters = {}
+        for path in paths:
+            path_without_extension = path[:-3]
+            
+            print(f"Processing path: {path_without_extension}")
+            
+            target_op = op(path_without_extension)
+            if target_op:
+                print(f"Found target_op: {target_op}")
+                op_parameters[path_without_extension] = GetOpParametersAsJSON(target_op)
+            else:
+                print(f"Could not find target_op for path: {path_without_extension}")
+
+        print(f"Retrieved op_parameters: {op_parameters}")
+
+        response['statusCode'] = 200
+        response['statusReason'] = 'OK'
+        response['data'] = json.dumps(op_parameters)
+        return response
+
+    except Exception as e:
+        print(f"Error in handle_chat_op: {str(e)}")
+        response['statusCode'] = 500
+        response['statusReason'] = 'Internal Server Error'
+        return response
+
+def handle_chat_dat(request, response):
+    try:
+        data = json.loads(request['data'])
+        paths = data['paths']
+        print(f"Received DAT paths: {paths}")
+
+        dat_contents = {}
+        for path in paths:
+            print(f"Original path: {path}")
+            path_without_extension = path[:-4] if path.lower().endswith('.dat') else path
+            print(f"Path without extension: {path_without_extension}")
+            
+            # Try to get the operator
+            dat_op = op(path_without_extension)
+            print(f"Retrieved operator: {dat_op}")
+            
+            if dat_op:
+                print(f"Operator type: {type(dat_op)}")
+                print(f"Is DAT: {dat_op.isDAT}")
+            
+            if dat_op and dat_op.isDAT:
+                dat_contents[path] = dat_op.text
+                print(f"Retrieved content for {path}: {dat_contents[path][:100]}...")  # Print first 100 chars
+            else:
+                print(f"Could not find DAT at path: {path_without_extension}")
+
+        print(f"Retrieved DAT contents for {len(dat_contents)} paths")
+
+        response['statusCode'] = 200
+        response['statusReason'] = 'OK'
+        response['data'] = json.dumps(dat_contents)
+        return response
+
+    except Exception as e:
+        print(f"Error in handle_chat_dat: {str(e)}")
+        response['statusCode'] = 500
+        response['statusReason'] = 'Internal Server Error'
+        return response
