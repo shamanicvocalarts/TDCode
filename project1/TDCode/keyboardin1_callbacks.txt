@@ -28,31 +28,7 @@ def onKey(dat, key, character, alt, lAlt, rAlt, ctrl, lCtrl, rCtrl, shift, lShif
     if key == 't' and ctrl and state:
         op.TDC.par.Showeditor = not op.TDC.par.Showeditor
         
-'''         # If we just showed the editor, move the cursor
-        if op.TDC.par.Showeditor:
-            centerMouseOnTDCodePane()
 
-def centerMouseOnTDCodePane():
-    pane = ui.panes['TDCode']
-    if pane:
-        # Get the pane's position and size
-        left, bottom, left_u, bottom_v = pane.bottomLeft
-        right, top, right_u, top_v = pane.topRight
-        
-        # Calculate the center of the pane in UV coordinates
-        center_u = (left_u + right_u) / 2
-        center_v = (bottom_v + top_v) / 2
-        
-        print(f"Pane UV center: u={center_u}, v={center_v}")
-
-        # Set the Constant CHOP values
-        constant = op('constant_mouse_position')
-        if constant:
-            constant.par.value0 = center_u
-            constant.par.value1 = center_v
-            print(f"Mouse position set to: {center_u}, {center_v}")
-        else:
-            print("Error: 'constant_mouse_position' CHOP not found") '''
 
 # shortcutName is the name of the shortcut
 
