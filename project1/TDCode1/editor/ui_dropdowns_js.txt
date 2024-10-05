@@ -1,0 +1,55 @@
+// ui_dropdowns.js
+import { isGlobMode } from './ui_core.js';
+
+function setupSearchableDropdown(id, shortcut) {
+    // ... (content of setupSearchableDropdown function)
+}
+
+function toggleDropdown(id) {
+    // ... (content of toggleDropdown function)
+}
+
+function populateDropdownList(select, list) {
+    // ... (content of populateDropdownList function)
+}
+
+function getDisplayName(path) {
+    // ... (content of getDisplayName function)
+}
+
+function filterDropdownList(list, filter) {
+    // ... (content of filterDropdownList function)
+}
+
+function matchGlob(text, pattern) {
+    // ... (content of matchGlob function)
+}
+
+function handleKeyboardNavigation(e, list) {
+    // ... (content of handleKeyboardNavigation function)
+}
+
+function selectListItem(list, item) {
+    // ... (content of selectListItem function)
+}
+
+function selectDropdownItem(select, search, wrapper, item) {
+    // ... (content of selectDropdownItem function)
+}
+
+function updateDatsDropdown(dats) {
+    updateDropdown('dats-select', dats);
+}
+
+function updateOpsDropdown(ops) {
+    updateDropdown('ops-select', ops);
+}
+
+function updateDropdown(id, items) {
+    // ... (content of updateDropdown function)
+}
+
+export { 
+    setupSearchableDropdown, toggleDropdown, updateDatsDropdown, 
+    updateOpsDropdown, filterDropdownList, handleKeyboardNavigation 
+};
