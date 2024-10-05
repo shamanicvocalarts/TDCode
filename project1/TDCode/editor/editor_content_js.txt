@@ -1,0 +1,33 @@
+// editor_content.js
+import { editor, isUpdating, currentPath, editorModels } from './editor_core.js';
+import { sendContentToServer, sendWebSocketMessage } from './websocket.js';
+import { saveUndoHistory } from './utils.js';
+
+function updateEditorContent(data) {
+    // ... (updateEditorContent function content)
+}
+
+function switchDAT(selectedPath) {
+    // ... (switchDAT function content)
+}
+
+function switchOP(selectedPath) {
+    // ... (switchOP function content)
+}
+
+function changeLanguage(languageName, languageFile) {
+    // ... (changeLanguage function content)
+}
+
+function storeEditorState() {
+    // ... (storeEditorState function content)
+}
+
+function restoreEditorState(path) {
+    // ... (restoreEditorState function content)
+}
+
+export { 
+    updateEditorContent, switchDAT, switchOP, 
+    changeLanguage, storeEditorState, restoreEditorState 
+};
