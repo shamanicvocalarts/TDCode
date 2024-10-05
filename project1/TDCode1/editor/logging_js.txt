@@ -1,0 +1,29 @@
+let isLoggingEnabled = false;
+
+export function setLoggingEnabled(enabled) {
+    isLoggingEnabled = enabled;
+    console.log(`Logging ${enabled ? 'enabled' : 'disabled'}`);
+}
+
+// Override console.log to also display in the UI console
+(function () {
+    var originalConsoleLog = console.log;
+    console.log = function (...args) {
+        originalConsoleLog.apply(console, args);
+        logArgs(args, getCallerInfo());
+    };
+})();
+
+function logArgs(args, callerInfo) {
+    // ... (rest of the logArgs function)
+}
+
+function getCallerInfo() {
+    // ... (rest of the getCallerInfo function)
+}
+
+export function log(...args) {
+    if (isLoggingEnabled) {
+        // ... (rest of the log function)
+    }
+}
