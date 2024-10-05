@@ -1,0 +1,32 @@
+// editor_ui.js
+import { editor } from './editor_core.js';
+import { switchDAT, switchOP } from './editor_content.js';
+
+function updateDatsDropdown(dats) {
+    // ... (updateDatsDropdown function content)
+}
+
+function updateOpsDropdown(ops) {
+    // ... (updateOpsDropdown function content)
+}
+
+function updateFileTree(fileTree, tabName) {
+    // ... (updateFileTree function content)
+}
+
+function createTreeItem(item, parentElement, tabName, level = 0) {
+    // ... (createTreeItem function content)
+}
+
+function updateActiveFileInTree(path) {
+    // ... (updateActiveFileInTree function content)
+}
+
+function handleUIEvent(eventType, data) {
+    // ... (handleUIEvent function content)
+}
+
+export { 
+    updateDatsDropdown, updateOpsDropdown, updateFileTree, 
+    updateActiveFileInTree, handleUIEvent 
+};
