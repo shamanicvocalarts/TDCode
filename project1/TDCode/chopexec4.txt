@@ -1,0 +1,41 @@
+# me - this DAT
+# 
+# channel - the Channel object which has changed
+# sampleIndex - the index of the changed sample
+# val - the numeric value of the changed sample
+# prev - the previous sample value
+# 
+# Make sure the corresponding toggle is enabled in the CHOP Execute DAT.
+
+def onOffToOn(channel, sampleIndex, val, prev):
+    # Copy TDCODE_MD_DOCS and paste it one level up
+    tdcode_docs = op('TDCode_MD_docs')
+    if tdcode_docs:
+        parent_op = me.parent()
+        if parent_op:
+            # Copy the operator
+            new_docs = parent_op.parent().copy(tdcode_docs)
+            
+            # Position the new operator 100 pixels to the left of the parent
+            new_docs.nodeX = parent_op.nodeX - 250
+            new_docs.nodeY = parent_op.nodeY
+            
+            print(f"Copied TDCODE_MD_DOCS to {new_docs.path}")
+        else:
+            print("Error: Could not find parent operator")
+    else:
+        print("Error: TDCode_MD_docs not found")
+    return
+
+def whileOn(channel, sampleIndex, val, prev):
+    return
+
+def onOnToOff(channel, sampleIndex, val, prev):
+    return
+
+def whileOff(channel, sampleIndex, val, prev):
+    return
+
+def onValueChange(channel, sampleIndex, val, prev):
+    return
+	
