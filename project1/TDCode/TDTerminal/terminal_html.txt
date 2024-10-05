@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TDCode GitHub API Terminal</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            /* Full height of the viewport */
+            overflow: hidden;
+            /* Hide any overflow */
+        }
+
+        #terminal {
+            background-color: #000000;
+            border: 1px solid #3a3a3a;
+            overflow-y: auto;
+            overflow-x: hidden;
+            /* Hide horizontal scrollbar */
+            padding: 10px;
+            margin-bottom: 10px;
+            font-size: 14px;
+            line-height: 1.4;
+            flex-grow: 1;
+            /* Take up remaining vertical space */
+            box-sizing: border-box;
+            /* Include padding and border in the element's total width and height */
+            white-space: pre-wrap;
+            /* Wrap text while preserving whitespace */
+            word-wrap: break-word;
+            /* Ensure long words are wrapped */
+        }
+
+        #input {
+            width: 100%;
+            padding: 5px;
+            background-color: #2d2d2d;
+            color: #d4d4d4;
+            border: 1px solid #3a3a3a;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            box-sizing: border-box;
+            /* Include padding and border in the element's total width and height */
+            margin-bottom: 20px;
+            /* Add bottom padding to the input field */
+        }
+
+        .command {
+            color: #9cdcfe !important;
+            /* Light blue */
+        }
+
+        .output {
+            color: #d4d4d4 !important;
+            /* Light gray */
+        }
+
+        .error {
+            color: #ff6b6b !important;
+            /* Light red */
+        }
+
+        .success {
+            color: #98c379 !important;
+            /* Light green */
+        }
+
+        .info {
+            color: #61afef !important;
+            /* Light cyan */
+        }
+
+        .warning {
+            color: #e5c07b !important;
+            /* Light yellow */
+        }
+
+        .debug {
+            color: #c678dd !important;
+            /* Light purple */
+        }
+
+        .highlight {
+            background-color: #3a3a3a;
+            color: #d4d4d4;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+
+        .git {
+            color: #e06c75 !important;
+            /* Light red */
+        }
+
+        .cd {
+            color: #c678dd !important;
+            /* Light purple */
+        }
+
+        .ls {
+            color: #e5c07b !important;
+            /* Light yellow */
+        }
+
+        .create {
+            color: #98c379 !important;
+            /* Light green */
+        }
+
+        .delete {
+            color: #61afef !important;
+            /* Light cyan */
+        }
+
+        .auth {
+            color: #d19a66 !important;
+            /* Light orange */
+        }
+
+        .checkAuth {
+            color: #d19a66 !important;
+            /* Light orange */
+        }
+
+        .gitIgnore {
+            color: #d19a66 !important;
+            /* Light orange */
+        }
+
+        .clear {
+            color: #d19a66 !important;
+            /* Light orange */
+        }
+
+        .help {
+            color: #d19a66 !important;
+            /* Light orange */
+        }
+
+        .terminal-link {
+            color: #61afef !important;
+            /* Light cyan */
+            text-decoration: underline;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="terminal"></div>
+    <input id="input" type="text" placeholder="Type your commands here..." autofocus>
+    <script type="module" src="/terminal.js"></script>
+    <script type="module">
+        // Function to adjust the height of the terminal
+        function adjustTerminalHeight() {
+            const terminal = document.getElementById('terminal');
+            const input = document.getElementById('input');
+            const bodyHeight = document.body.clientHeight;
+            const inputHeight = input.clientHeight;
+            const terminalHeight = bodyHeight - inputHeight - 40; // Adjust for padding and margin
+            terminal.style.height = `${terminalHeight}px`;
+        }
+
+        // Initial adjustment
+        adjustTerminalHeight();
+
+        // Adjust height on window resize
+        window.addEventListener('resize', adjustTerminalHeight);
+    </script>
+</body>
+
+</html>
