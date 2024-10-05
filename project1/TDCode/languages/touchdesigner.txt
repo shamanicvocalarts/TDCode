@@ -1,6 +1,8 @@
 //touchdesigner.js
 // touchdesigner language support for Monaco Editor
 
+let allSuggestions = [];
+
 class TrieNode {
     constructor() {
         this.children = {};
@@ -106,10 +108,6 @@ define('touchdesigner', ['vs/editor/editor.main'], function(monaco) {
     // Register a completion item provider that combines Python, TouchDesigner items, and DAT content
     monaco.languages.registerCompletionItemProvider('python', {
         provideCompletionItems: function (model, position) {
-            if (isCopilotEnabled) {
-                // When Copilot is enabled, don't provide suggestions here
-                return { suggestions: [] };
-            }
             const textUntilPosition = model.getValueInRange({
                 startLineNumber: position.lineNumber,
                 startColumn: 1,
@@ -119,18 +117,47 @@ define('touchdesigner', ['vs/editor/editor.main'], function(monaco) {
             const match = textUntilPosition.match(/\S+$/);
             const prefix = match ? match[0] : '';
 
+            const suggestions = [
+                ...tdKeywords.map(keyword => ({
+                    label: keyword,
+                    kind: monaco.languages.CompletionItemKind.Keyword,
+                    insertText: keyword
+                })),
+                ...tdFunctions,
+                ...networkItems,
+                ...datTrie.search(prefix)
+            ];
+
             return {
-                suggestions: [
-                    ...tdKeywords.map(keyword => ({
-                        label: keyword,
-                        kind: monaco.languages.CompletionItemKind.Keyword,
-                        insertText: keyword
-                    })),
-                    ...tdFunctions,
-                    ...networkItems,
-                    ...datTrie.search(prefix)
-                ]
+                suggestions: suggestions.map(suggestion => ({
+                    ...suggestion,
+                    documentation: suggestion.documentation || '',
+                    insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                    range: {
+                        replace: {
+                            startLineNumber: position.lineNumber,
+                            startColumn: position.column - prefix.length,
+                            endLineNumber: position.lineNumber,
+                            endColumn: position.column
+                        },
+                        insert: {
+                            startLineNumber: position.lineNumber,
+                            startColumn: position.column - prefix.length,
+                            endLineNumber: position.lineNumber,
+                            endColumn: position.column
+                        }
+                    },
+                    sortText: suggestion.label
+                }))
             };
+        },
+
+        resolveCompletionItem: function (item) {
+            // Add additional details to the completion item if needed
+            if (item.documentation) {
+                item.documentation = item.documentation;
+            }
+            return item;
         }
     });
 
@@ -165,7 +192,7 @@ define('touchdesigner', ['vs/editor/editor.main'], function(monaco) {
 
 
     function updateAllSuggestions() {
-        //console.log("Updating all suggestions");
+        console.log("Updating all suggestions");
         allSuggestions = [
             ...tdKeywords.map(keyword => ({
                 label: keyword,
@@ -180,43 +207,23 @@ define('touchdesigner', ['vs/editor/editor.main'], function(monaco) {
                 ...item,
                 kind: 'Variable'
             })),
-            ...Array.from(datTrie.root.children).flatMap(([_, node]) =>
-                node.suggestion ? [node.suggestion] : []
-            ).map(suggestion => ({
+            ...datTrie.search('').map(suggestion => ({
                 ...suggestion,
                 kind: 'Text'
             }))
         ];
-        //console.log("All suggestions updated. Total count:", allSuggestions.length);
-
+        console.log("All suggestions updated. Total count:", allSuggestions.length);
     }
 
-    function setCopilotMode(enabled) {
-        isCopilotEnabled = enabled;
-    }
 
-    function getCopilotSuggestions() {
-        //console.log("Getting Copilot suggestions");
-        const allSuggestions = [];
-        function collectSuggestions(node, prefix) {
-            if (allSuggestions.length >= 20) return; // Stop if we have 20 suggestions
-            if (node.suggestion) {
-                allSuggestions.push(node.suggestion);
-            }
-            for (let char in node.children) {
-                if (allSuggestions.length >= 20) break; // Stop if we have 20 suggestions
-                collectSuggestions(node.children[char], prefix + char);
-            }
-        }
-        collectSuggestions(datTrie.root, '');
-        //console.log("Copilot suggestions count:", allSuggestions.length);
-        return allSuggestions;
-    }
+
+
+    updateAllSuggestions(); // Add this line
 
     return {
         updateNetworkItems,
         addDatSuggestions,
-        setCopilotMode,
-        getCopilotSuggestions
+
+        getAllSuggestions: () => [...allSuggestions]  // Return a copy to prevent modification
     };
 });
