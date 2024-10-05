@@ -8,7 +8,7 @@
 # Make sure the corresponding toggle is enabled in the CHOP Execute DAT.
 
 def onOffToOn(channel, sampleIndex, val, prev):
-	#op("text1").run()
+	
 	
 	op('webBrowser').allowCooking = False
 	op('webBrowser').allowCooking = True
