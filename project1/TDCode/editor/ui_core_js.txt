@@ -1,0 +1,81 @@
+// ui_core.js
+import { log, updateThemeVariables } from './utils.js';
+import { editor } from './editor.js';
+
+let isGlobMode = false;
+
+function setupUIEventListeners() {
+    setupThemeListeners();
+    setupEditorOptionListeners();
+    setupUndoRedoListeners();
+    setupLiveModeListener();
+    setupGlobModeListener();
+    setupFileTree();
+    setupConsoleTabs();
+}
+
+function setupThemeListeners() {
+    document.getElementById('theme-select').addEventListener('change', function(e) {
+        const theme = e.target.value;
+        monaco.editor.setTheme(theme);
+        updateThemeVariables(theme);
+        localStorage.setItem('selectedTheme', theme);
+    });
+
+    window.addEventListener('load', function() {
+        var savedTheme = localStorage.getItem('selectedTheme') || 'vs-dark';
+        document.getElementById('theme-select').value = savedTheme;
+        monaco.editor.setTheme(savedTheme);
+        updateThemeVariables(savedTheme);
+    });
+}
+
+function setupEditorOptionListeners() {
+    document.getElementById('font-size').addEventListener('change', function(e) {
+        var newFontSize = parseInt(e.target.value);
+        editor.updateOptions({ fontSize: newFontSize });
+        document.getElementById('console').style.fontSize = newFontSize + 'px';
+    });
+
+    document.getElementById('minimap-toggle').addEventListener('change', function(e) {
+        editor.updateOptions({ minimap: { enabled: e.target.checked } });
+    });
+}
+
+function setupUndoRedoListeners() {
+    document.getElementById('undo-button').addEventListener('click', function() {
+        editor.trigger('keyboard', 'undo');
+    });
+
+    document.getElementById('redo-button').addEventListener('click', function() {
+        editor.trigger('keyboard', 'redo');
+    });
+}
+
+function setupLiveModeListener() {
+    document.getElementById('live-toggle').addEventListener('change', function(e) {
+        handleUIEvent('toggleLiveMode', { isLive: e.target.checked });
+    });
+}
+
+function setupGlobModeListener() {
+    document.getElementById('glob-toggle').addEventListener('change', function() {
+        isGlobMode = this.checked;
+        const activeDropdown = document.querySelector('.dropdown-wrapper[style="display: block;"]');
+        if (activeDropdown) {
+            const list = activeDropdown.querySelector('.dropdown-list');
+            const search = activeDropdown.querySelector('.dropdown-search');
+            filterDropdownList(list, search.value);
+        }
+    });
+}
+
+function setupFileTree() {
+    // ... (content of setupFileTree function)
+}
+
+function setupConsoleTabs() {
+    // ... (content of setupConsoleTabs function)
+}
+
+export { setupUIEventListeners, isGlobMode };
