@@ -1,0 +1,60 @@
+# me - this DAT.
+# 
+# dat - the changed DAT
+# rows - a list of row indices
+# cols - a list of column indices
+# cells - the list of cells that have changed content
+# prev - the list of previous string contents of the changed cells
+# 
+# Make sure the corresponding toggle is enabled in the DAT Execute DAT.
+# 
+# If rows or columns are deleted, sizeChange will be called instead of row/col/cellChange.
+
+
+def onTableChange(dat):
+    # Check if the dat is valid and has at least 2 rows (header + 1 data row)
+    if dat and dat.numRows > 1:
+        # Extract the models from the 3rd column (index 2) of the second row (index 1)
+        models_str = dat[1, 2].val  # Row 1 (second row), column 3 (index 2)
+        models_list = models_str.split(", ")  # Split by ", "
+
+        # Log the extracted models for debugging
+        #print("Extracted models:", models_list)
+
+        # Access the Chatmodel strMenu parameter on the parent component
+        parent_param = parent().par.Chatmodel
+        if parent_param.isMenu:
+            # Populate the strMenu with the extracted models
+            #print(f"Updating Chatmodel strMenu with models:", models_list)
+            parent_param.menuNames = models_list
+            parent_param.menuLabels = models_list
+        else:
+            # If the Chatmodel parameter is not the expected type, log an error
+            #print("Chatmodel is not a strMenu parameter.")
+    else:
+        # Reset the Chatmodel strMenu to be empty if the table is invalid
+        parent_param = parent().par.Chatmodel
+        if parent_param.isMenu:
+            #print("Resetting Chatmodel strMenu")
+            parent_param.menuNames = []
+            parent_param.menuLabels = []
+        else:
+            #print("Chatmodel is not a strMenu parameter.")
+
+    return
+
+
+
+
+def onRowChange(dat, rows):
+	return
+
+def onColChange(dat, cols):
+	return
+
+def onCellChange(dat, cells, prev):
+	return
+
+def onSizeChange(dat):
+	return
+	
