@@ -1,0 +1,41 @@
+
+// uiHelpers.js
+
+const terminal = document.getElementById('terminal');
+
+
+function escapeHtml(unsafe) {
+    return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+export function log(message, type = 'output') {
+    const escapedMessage = escapeHtml(message);
+    const indentedMessage = escapedMessage.replace(/ /g, '&nbsp;');
+    const coloredMessage = `<span class="${type}">${indentedMessage}</span>`;
+
+    // Use a regular expression to find URLs in the message
+    const urlRegex = /https?:\/\/[^\s]+/g;
+    const parts = escapedMessage.split(urlRegex);
+    const urls = escapedMessage.match(urlRegex);
+
+    let finalMessage = '';
+    parts.forEach((part, index) => {
+        finalMessage += part;
+        if (urls && urls[index]) {
+            const url = urls[index];
+            finalMessage += `<a href="${url}" class="terminal-link">${url}</a>`;
+        }
+    });
+
+    terminal.innerHTML += `<span class="${type}">${finalMessage}</span><br>`;
+    terminal.scrollTop = terminal.scrollHeight;
+}
+
+export function clear() {
+    terminal.innerHTML = '';
+}
