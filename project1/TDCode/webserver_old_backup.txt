@@ -1,0 +1,145 @@
+import json
+import time
+import base64
+import hashlib
+import os
+
+from webserver_api_handlers import handle_api_key_request
+from webserver_ws_handlers import (send_initial_state, send_copilot_status, 
+                                   send_copilot_config, send_logging_status, send_logtags)
+from webserver_dat_op_handlers import (SendContentToEditor, get_dat_hash, CheckDatContentChanged,
+                                       SendDatContent, UpdateDatsListInEditor, UpdateOpsListInEditor,
+                                       GetOpParametersAsJSON, UpdateOpParameters, onOperatorParameterChange)
+
+def onHTTPRequest(webServerDAT, request, response):
+    """
+    Handle incoming HTTP requests by routing them to the appropriate content.
+    """
+    uri = request['uri']
+    # Access the webserver_routes table
+    routes_table = op('webserver_routes')
+
+    if uri == '/api/getApiKey':
+        return handle_api_key_request(request, response)
+
+
+    
+    # Iterate over the rows to find the matching route
+    for row in routes_table.rows():
+    
+        route_uri = row[0].val
+        
+        # Check if the URI matches
+        if route_uri == uri:
+            operator_name = row[1].val
+            content_type = row[2].val if row[2].val else 'text/html'
+            
+            # Set response fields
+            response['statusCode'] = 200
+            response['statusReason'] = 'OK'
+            response['data'] = op(operator_name).text
+            response['content-type'] = content_type
+            return response
+    
+    # If no match is found, return 404
+    response['statusCode'] = 404
+    response['statusReason'] = 'Not Found'
+    response['data'] = '404 - Not Found'
+    
+    return response
+
+def onWebSocketOpen(webServerDAT, client, uri):
+    print(f"WebSocket connection opened with {client}")
+    UpdateDatsListInEditor()
+    send_initial_state(webServerDAT, client)
+
+def onWebSocketClose(webServerDAT, client):
+    print(f"WebSocket connection closed with {client}")
+
+def onWebSocketReceiveText(webServerDAT, client, data):
+    try:
+        message = json.loads(data)
+        if message['action'] == 'updateTDParameter':
+            # Update TouchDesigner parameters based on editor selection
+            if message['type'] == 'dats':
+                parent.TDC.par.Datsmenu = message['path']
+            elif message['type'] == 'ops':
+                parent.TDC.par.Opsmenu = message['path']
+        elif message['action'] == 'contentChanged':
+            # Update DAT content in TouchDesigner
+            path = message.get('path')
+            content = message['content']
+            content = base64.b64decode(content).decode('utf-8')
+            if path:
+                target_dat = op(path)
+                if target_dat and target_dat.isDAT:
+                    run(lambda p=path, c=content: setattr(op(p), 'text', c), delayFrames=1)
+            else:
+                print("Received content without path:", content[:100])
+        elif message['action'] == 'selectDat':
+            # Send DAT content to editor
+            path = message.get('path')
+            if path:
+                target_dat = op(path)
+                if target_dat and target_dat.isDAT:
+                    if CheckDatContentChanged(path):
+                        content = target_dat.text
+                        SendContentToEditor(content, path, updateType='external')
+                    else:
+                        SendContentToEditor(target_dat.text, path)
+                else:
+                    print(f"Invalid target DAT: {path}")
+        elif message['action'] == 'selectOp':
+            # Send OP parameters to editor
+            path = message.get('path')
+            if path:
+                target_op = op(path)
+                if target_op:
+                    op_json = GetOpParametersAsJSON(target_op)
+                    SendContentToEditor(op_json, path, language='json')
+                else:
+                    print(f"Invalid target OP: {path}")
+        elif message['action'] == 'updateOpParameters':
+            # Update OP parameters in TouchDesigner
+            path = message.get('path')
+            parameters = message.get('parameters')
+            if path and parameters:
+                target_op = op(path)
+                if target_op:
+                    UpdateOpParameters(target_op, parameters)
+                else:
+                    print(f"Invalid target OP: {path}")
+        elif message['action'] == 'copilotRequest':
+            # Check if Copilot is enabled before processing the request
+            if parent.TDC.par.Enablecopilot.eval():
+                # The actual completion is handled client-side, 
+                # so we just need to pass the message back
+                webServerDAT.webSocketSendText(client, json.dumps({
+                    'action': 'copilotResponse',
+                    'request': message['request']
+                }))
+            else:
+                print("Copilot is disabled, ignoring request")
+
+    except json.JSONDecodeError:
+        print("Received invalid JSON data")
+    except Exception as e:
+        print(f"Error processing WebSocket message: {str(e)}")
+
+
+def onWebSocketReceiveBinary(webServerDAT, client, data):
+    print(f"Received binary data from {client}, length: {len(data)}")
+
+def onWebSocketReceivePing(webServerDAT, client, data):
+    print(f"Received ping from {client}")
+    webServerDAT.webSocketSendPong(client, data)
+
+def onWebSocketReceivePong(webServerDAT, client, data):
+    print(f"Received pong from {client}")
+
+def onServerStart(webServerDAT):
+    print("WebServer started")
+
+def onServerStop(webServerDAT):
+    print("WebServer stopped")
+  
