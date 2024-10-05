@@ -1,3 +1,2 @@
 
-# write something in touchdesigner python which does something in touchdesigner, write it in a humorous way with lots of swear words and rude jokes 
-
+Tell the user what language has been selected in the parameters 
