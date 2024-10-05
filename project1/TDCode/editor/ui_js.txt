@@ -1,0 +1,534 @@
+//ui.js
+
+import { log, updateThemeVariables } from './utils.js';
+import { sendOpParameters } from './websocket.js';
+import { editor, handleUIEvent, currentPath, isUpdating } from './editor.js';
+
+// Flag to determine if glob matching is enabled for search
+let isGlobMode = false;
+
+
+
+function setupUIEventListeners() {
+    // Set up event listener for language selection
+    document.getElementById('language-select').addEventListener('change', function (e) {
+        var languageName = e.target.value;
+        var languageFile = e.target.options[e.target.selectedIndex].getAttribute('data-language-file');
+        handleUIEvent('changeLanguage', { languageName, languageFile });
+    });
+
+    // Set up event listener for theme selection
+    document.getElementById('theme-select').addEventListener('change', function (e) {
+        const theme = e.target.value;
+        monaco.editor.setTheme(theme);
+        updateThemeVariables(theme);
+        localStorage.setItem('selectedTheme', theme);
+    });
+
+    // Set up event listener for font size changes
+    document.getElementById('font-size').addEventListener('change', function (e) {
+        var newFontSize = parseInt(e.target.value);
+        editor.updateOptions({ fontSize: newFontSize });
+        document.getElementById('console').style.fontSize = newFontSize + 'px';
+    });
+
+    // Set up event listener for minimap toggle
+    document.getElementById('minimap-toggle').addEventListener('change', function (e) {
+        editor.updateOptions({ minimap: { enabled: e.target.checked } });
+    });
+
+    // Set up event listeners for undo and redo buttons
+    document.getElementById('undo-button').addEventListener('click', function () {
+        editor.trigger('keyboard', 'undo');
+    });
+
+    document.getElementById('redo-button').addEventListener('click', function () {
+        editor.trigger('keyboard', 'redo');
+    });
+
+    // Set up event listeners for DAT and OP selection
+    document.getElementById('dats-select').addEventListener('change', function (e) {
+        handleUIEvent('switchDAT', { path: e.target.value });
+    });
+
+    document.getElementById('ops-select').addEventListener('change', function (e) {
+        handleUIEvent('switchOP', { path: e.target.value });
+    });
+
+    // Set up event listener for live mode toggle
+    document.getElementById('live-toggle').addEventListener('change', function (e) {
+        handleUIEvent('toggleLiveMode', { isLive: e.target.checked });
+    });
+
+    // Set up event listener for glob mode toggle
+    document.getElementById('glob-toggle').addEventListener('change', function () {
+        isGlobMode = this.checked;
+        const activeDropdown = document.querySelector('.dropdown-wrapper[style="display: block;"]');
+        if (activeDropdown) {
+            const list = activeDropdown.querySelector('.dropdown-list');
+            const search = activeDropdown.querySelector('.dropdown-search');
+            filterDropdownList(list, search.value);
+        }
+    });
+
+    // Load saved theme on window load
+    window.addEventListener('load', function () {
+        var savedTheme = localStorage.getItem('selectedTheme') || 'vs-dark';
+        document.getElementById('theme-select').value = savedTheme;
+        monaco.editor.setTheme(savedTheme);
+        updateThemeVariables(savedTheme);
+    });
+
+    // Set up searchable dropdowns for DATs and OPs
+    setupSearchableDropdown('dats-select', 'Alt+Shift+S');
+    setupSearchableDropdown('ops-select', 'Alt+Shift+O');
+
+    // Set up keyboard shortcuts for dropdown toggles
+    document.addEventListener('keydown', function (e) {
+        if (e.altKey && e.shiftKey) {
+            if (e.key === 'S') {
+                e.preventDefault();
+                toggleDropdown('dats-select');
+            } else if (e.key === 'O') {
+                e.preventDefault();
+                toggleDropdown('ops-select');
+            }
+        }
+    });
+
+    // Set up event listener for JSON content changes (for OP parameters)
+    editor.onDidChangeModelContent(function (e) {
+        if (currentPath && !isUpdating && editor.getModel().getLanguageId() === 'json') {
+            var content = editor.getValue();
+            try {
+                const parameters = JSON.parse(content);
+                sendOpParameters(JSON.stringify(parameters), currentPath);
+            } catch (error) {
+                console.error('Invalid JSON:', error);
+            }
+        }
+    });
+
+    setupFileTree();
+
+}
+
+// Set up searchable dropdown functionality
+function setupSearchableDropdown(id, shortcut) {
+    const select = document.getElementById(id);
+    const container = select.closest('.dropdown-container');
+    const wrapper = container.querySelector('.dropdown-wrapper');
+    const search = container.querySelector('.dropdown-search');
+    const list = container.querySelector('.dropdown-list');
+
+    // Prevent default select behavior and toggle dropdown
+    select.addEventListener('mousedown', function (e) {
+        e.preventDefault();
+        this.blur();
+        toggleDropdown(id);
+    });
+
+    // Filter list on search input
+    search.addEventListener('input', function () {
+        filterDropdownList(list, this.value);
+    });
+
+    // Handle keyboard navigation in dropdown
+    search.addEventListener('keydown', function (e) {
+        handleKeyboardNavigation(e, list);
+    });
+
+    // Handle item selection in dropdown
+    list.addEventListener('click', function (e) {
+        if (e.target.tagName === 'DIV') {
+            selectDropdownItem(select, search, wrapper, e.target);
+        }
+    });
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function (e) {
+        if (!container.contains(e.target) && e.target !== search) {
+            wrapper.style.display = 'none';
+        }
+    });
+
+    // Filter list on search input (duplicate, consider removing)
+    search.addEventListener('input', function () {
+        filterDropdownList(list, this.value);
+    });
+}
+
+// Toggle dropdown visibility
+function toggleDropdown(id) {
+    const select = document.getElementById(id);
+    const container = select.closest('.dropdown-container');
+    const wrapper = container.querySelector('.dropdown-wrapper');
+    const search = container.querySelector('.dropdown-search');
+    const list = container.querySelector('.dropdown-list');
+
+    if (wrapper.style.display === 'block') {
+        wrapper.style.display = 'none';
+    } else {
+        wrapper.style.display = 'block';
+        search.focus();
+        populateDropdownList(select, list);
+        filterDropdownList(list, '');
+    }
+}
+
+// Populate dropdown list with options from select element
+function populateDropdownList(select, list) {
+    list.innerHTML = '';
+    Array.from(select.options).forEach(option => {
+        if (option.value) {
+            const div = document.createElement('div');
+            div.textContent = option.text;
+            div.dataset.value = option.value;
+            list.appendChild(div);
+        }
+    });
+}
+
+// Get display name for path
+function getDisplayName(path) {
+    const parts = path.split('/');
+    return parts.length > 2 ? '.../' + parts.slice(-2).join('/') : path;
+}
+
+// Filter dropdown list based on search input
+function filterDropdownList(list, filter) {
+    const items = Array.from(list.children);
+    let firstVisible = null;
+    const lowercaseFilter = filter.toLowerCase();
+
+    items.forEach(item => {
+        const text = item.textContent;
+        const lowercaseText = text.toLowerCase();
+
+        let isVisible;
+        if (isGlobMode) {
+            isVisible = matchGlob(text, filter);
+        } else {
+            isVisible = lowercaseText.includes(lowercaseFilter);
+        }
+
+        item.style.display = isVisible ? '' : 'none';
+        if (isVisible && !firstVisible) firstVisible = item;
+    });
+
+    if (firstVisible) selectListItem(list, firstVisible);
+}
+
+/**
+ * Match text against a glob pattern
+ * @param {string} text - The text to match
+ * @param {string} pattern - The glob pattern to match against
+ * @return {boolean} True if the text matches the pattern, false otherwise
+ */
+function matchGlob(text, pattern) {
+    if (pattern === '') return true; // Show all items if pattern is empty
+
+    // Convert glob pattern to regex
+    const regexPattern = pattern
+        .split('*')
+        .map(s => s.replace(/[.+^${}()|[\]\\]/g, '\\$&'))
+        .join('.*');
+
+    const regex = new RegExp(regexPattern, 'i');
+    return regex.test(text);
+}
+
+/**
+ * Handle keyboard navigation in the dropdown list
+ * @param {Event} e - The keyboard event
+ * @param {HTMLElement} list - The dropdown list element
+ */
+function handleKeyboardNavigation(e, list) {
+    const items = Array.from(list.children).filter(item => item.style.display !== 'none');
+    const selected = list.querySelector('.selected');
+    let index = items.indexOf(selected);
+
+    switch (e.key) {
+        case 'ArrowDown':
+            e.preventDefault();
+            index = (index + 1) % items.length;
+            selectListItem(list, items[index]);
+            break;
+        case 'ArrowUp':
+            e.preventDefault();
+            index = (index - 1 + items.length) % items.length;
+            selectListItem(list, items[index]);
+            break;
+        case 'Enter':
+            e.preventDefault();
+            if (selected) {
+                const select = list.closest('.dropdown-container').querySelector('select');
+                const search = list.closest('.dropdown-container').querySelector('.dropdown-search');
+                const wrapper = list.closest('.dropdown-wrapper');
+                selectDropdownItem(select, search, wrapper, selected);
+            }
+            break;
+    }
+}
+
+/**
+ * Select an item in the dropdown list
+ * @param {HTMLElement} list - The dropdown list element
+ * @param {HTMLElement} item - The item to select
+ */
+function selectListItem(list, item) {
+    list.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+    item.classList.add('selected');
+    item.scrollIntoView({ block: 'nearest' });
+}
+
+/**
+ * Select a dropdown item and update the UI
+ * @param {HTMLSelectElement} select - The select element
+ * @param {HTMLInputElement} search - The search input element
+ * @param {HTMLElement} wrapper - The dropdown wrapper element
+ * @param {HTMLElement} item - The selected item
+ */
+function selectDropdownItem(select, search, wrapper, item) {
+    select.value = item.dataset.value;
+    select.dispatchEvent(new Event('change'));
+    search.value = '';
+    wrapper.style.display = 'none';
+}
+
+/**
+ * Update the DATs dropdown in the UI
+ * @param {Array} dats - Array of DAT objects
+ */
+function updateDatsDropdown(dats) {
+    updateDropdown('dats-select', dats);
+}
+
+/**
+ * Update the OPs dropdown in the UI
+ * @param {Array} ops - Array of OP objects
+ */
+function updateOpsDropdown(ops) {
+    updateDropdown('ops-select', ops);
+}
+
+/**
+ * Update a dropdown with new items
+ * @param {string} id - The ID of the dropdown element
+ * @param {Array} items - Array of items to populate the dropdown
+ */
+function updateDropdown(id, items) {
+    const select = document.getElementById(id);
+    select.innerHTML = '<option value="">Select ' + (id === 'dats-select' ? 'DAT' : 'OP') + '</option>';
+    items.forEach(item => {
+        const option = document.createElement('option');
+        option.value = item.path;
+        option.textContent = item.name;
+        select.appendChild(option);
+    });
+}
+
+function setupFileTree() {
+    const fileTree = document.getElementById('file-tree');
+    const hamburgerMenu = document.getElementById('hamburger-menu');
+    const tabContainer = document.querySelector('.tab-container');
+    const datsTreeContent = document.getElementById('dats-tree-content');
+    const opsTreeContent = document.getElementById('ops-tree-content');
+
+    // Check if elements are found
+    if (!fileTree || !hamburgerMenu) {
+        console.error('File tree or hamburger menu elements not found');
+        return;
+    }
+
+    log('File tree setup initiated');
+
+    // Toggle file tree visibility
+    function toggleFileTree() {
+        //log('Toggling file tree');
+        fileTree.classList.toggle('hidden');
+        document.getElementById('container').classList.toggle('narrow');
+        editor.layout(); // Force Monaco editor to update its layout
+        window.dispatchEvent(new Event('resize'));
+    }
+
+    // Hamburger menu click event
+    hamburgerMenu.addEventListener('click', (e) => {
+        //log('Hamburger clicked');
+        e.preventDefault();
+        toggleFileTree();
+    });
+
+    // Keyboard shortcut
+    document.addEventListener('keydown', (e) => {
+        if (e.altKey && e.shiftKey && e.key === 'N') {
+            //log('Keyboard shortcut triggered');
+            e.preventDefault();
+            toggleFileTree();
+        }
+    });
+
+    // Tab switching
+    tabContainer.addEventListener('click', (e) => {
+        if (e.target.classList.contains('tab')) {
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            e.target.classList.add('active');
+
+            const selectedTab = e.target.dataset.tab;
+            if (selectedTab === 'dats') {
+                datsTreeContent.style.display = 'block';
+                opsTreeContent.style.display = 'none';
+            } else if (selectedTab === 'ops') {
+                datsTreeContent.style.display = 'none';
+                opsTreeContent.style.display = 'block';
+            }
+        }
+    });
+
+
+}
+
+let terminalCount = 1;
+let usedTerminalNumbers = new Set([0]); // Start with 0 for the initial terminal
+
+function getNextAvailableTerminalNumber() {
+    let i = 1;
+    while (usedTerminalNumbers.has(i)) {
+        i++;
+    }
+    return i;
+}
+
+function setupTerminalTabs() {
+    const addTerminalButton = document.getElementById('add-terminal-tab');
+    const terminalTabs = document.getElementById('terminal-tabs');
+    const terminalsContainer = document.getElementById('terminals-container');
+
+    addTerminalButton.addEventListener('click', () => {
+        const newTerminalNumber = getNextAvailableTerminalNumber();
+        const newTabId = `terminal-${newTerminalNumber}`;
+
+        // Create new tab
+        const newTab = document.createElement('div');
+        newTab.className = 'tab-wrapper';
+        newTab.innerHTML = `
+            <button class="console-tab" data-tab="${newTabId}">Terminal ${newTerminalNumber + 1}</button>
+            <button class="delete-tab" data-target="${newTabId}">&times;</button>
+        `;
+        terminalTabs.appendChild(newTab);
+
+        // Create new iframe
+        const newIframe = document.createElement('iframe');
+        newIframe.id = newTabId;
+        newIframe.src = '/terminal';
+        newIframe.frameBorder = '0';
+        newIframe.className = 'terminal-iframe';
+        terminalsContainer.appendChild(newIframe);
+
+        // Add the new terminal number to the tracking set
+        usedTerminalNumbers.add(newTerminalNumber);
+
+        // Activate the new tab
+        activateTab(newTabId);
+    });
+
+    // Event delegation for tab switching and closing
+    document.querySelector('.console-tabs').addEventListener('click', (e) => {
+        if (e.target.classList.contains('console-tab')) {
+            activateTab(e.target.dataset.tab);
+        } else if (e.target.classList.contains('delete-tab')) {
+            closeTab(e.target.dataset.target);
+        }
+    });
+}
+
+function closeTab(tabId) {
+    const tabWrapper = document.querySelector(`.tab-wrapper:has(button[data-tab="${tabId}"])`);
+    const iframe = document.getElementById(tabId);
+
+    if (tabWrapper && iframe) {
+        // If the closed tab was active, activate another tab
+        if (tabWrapper.querySelector('.console-tab').classList.contains('active')) {
+            const nextTab = tabWrapper.nextElementSibling || tabWrapper.previousElementSibling;
+            if (nextTab) {
+                activateTab(nextTab.querySelector('.console-tab').dataset.tab);
+            } else {
+                // If no other terminals, show console
+                activateTab('console');
+            }
+        }
+
+        // Remove the terminal number from the tracking set
+        const terminalNumber = parseInt(tabId.split('-')[1]);
+        usedTerminalNumbers.delete(terminalNumber);
+
+        // Remove the tab and iframe
+        tabWrapper.remove();
+        iframe.remove();
+    }
+}
+
+
+function activateTab(tabId) {
+    // Deactivate all tabs and iframes
+    document.querySelectorAll('.console-tab').forEach(tab => tab.classList.remove('active'));
+    document.querySelectorAll('.terminal-iframe').forEach(iframe => iframe.classList.remove('active'));
+
+    // Activate the selected tab and iframe
+    const selectedTab = document.querySelector(`.console-tab[data-tab="${tabId}"]`);
+    const selectedIframe = document.getElementById(tabId);
+
+    if (selectedTab && selectedIframe) {
+        selectedTab.classList.add('active');
+        selectedIframe.classList.add('active');
+    }
+
+    // Handle console tab separately
+    if (tabId === 'console') {
+        document.getElementById('console').style.display = 'block';
+        document.getElementById('terminals-container').style.display = 'none';
+    } else {
+        document.getElementById('console').style.display = 'none';
+        document.getElementById('terminals-container').style.display = 'block';
+    }
+}
+
+
+
+// Call this function when your UI is being set up
+setupTerminalTabs();
+
+function setupConsoleTabs() {
+    const tabs = document.querySelectorAll('.console-tab');
+    const consoleElement = document.getElementById('console');
+    const terminalIframe = document.getElementById('terminal-iframe');
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            const tabName = tab.getAttribute('data-tab');
+            // Deactivate all tabs
+            tabs.forEach(t => t.classList.remove('active'));
+            // Activate clicked tab
+            tab.classList.add('active');
+            if (tabName === 'console') {
+                consoleElement.style.display = 'block';
+                terminalIframe.style.display = 'none';
+            } else if (tabName === 'terminal') {
+                consoleElement.style.display = 'none';
+                terminalIframe.style.display = 'block';
+                // Load terminal if not already loaded
+                if (!terminalIframe.src) {
+                    const host = window.location.hostname;
+                    const port = window.location.port;
+                    // Use the current origin and append '/terminal'
+                    terminalIframe.src = `${window.location.origin}/terminal`;
+                }
+            }
+        });
+    });
+}
+
+// Call this function when your UI is being set up
+setupConsoleTabs();
+
+// Export the necessary functions for use in other modules
+export { setupUIEventListeners, updateDatsDropdown, updateOpsDropdown };    
