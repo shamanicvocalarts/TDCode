@@ -1,0 +1,46 @@
+# me - this DAT
+# par - the Par object that has changed
+# val - the current value
+# prev - the previous value
+# 
+# Make sure the corresponding toggle is enabled in the Parameter Execute DAT.
+
+
+
+def onPulse(par):
+    if par.name == "Supportme":
+        show_support_options()
+    if par.name == "Github":
+        open_github_page()
+    return
+
+
+
+def show_support_options():
+    popDialog = op.TDResources.PopDialog
+    popDialog.OpenDefault(
+        text='Thank you so much for your support! \n Choose a support option below:',
+        title='Support Options',
+        buttons=['Patreon', 'Ko-Fi', 'Crypto', 'Cancel'],
+        callback=handle_support_choice,
+        escButton=4,
+        enterButton=1,
+        escOnClickAway=True
+    )
+
+def handle_support_choice(info):
+    choice = info['button']
+    if choice == 'Patreon':
+        ui.viewFile('https://www.patreon.com/shamanicvocalarts')
+    elif choice == 'Ko-Fi':
+        ui.viewFile('https://ko-fi.com/shamanic')
+    elif choice == 'Crypto':
+        # You might want to show another dialog with crypto addresses
+        show_crypto_addresses()
+
+def show_crypto_addresses():
+    # Implement this to show crypto donation addresses
+    pass
+    
+def open_github_page():
+    ui.viewFile('https://github.com/shamanicvocalarts/TDCode-Beta')
