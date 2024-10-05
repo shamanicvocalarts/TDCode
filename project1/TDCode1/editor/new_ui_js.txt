@@ -1,0 +1,10 @@
+// ui.js
+
+import * as core from './ui_core.js';
+import * as events from './ui_events.js';
+import * as dropdowns from './ui_dropdowns.js';
+
+// Re-export everything from the imported modules
+export * from './ui_core.js';
+export * from './ui_events.js';
+export * from './ui_dropdowns.js';
