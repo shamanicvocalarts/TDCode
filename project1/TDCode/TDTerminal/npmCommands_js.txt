@@ -1,0 +1,69 @@
+//npmCommands.js
+
+import { log } from './uiHelpers.js';
+import { getCurrentDirectory } from './fileOperations.js';
+
+const isWindows = true; // Set this to false for Mac in the future
+
+export async function executeNpmCommand(command) {
+    if (isWindows) {
+        return await executeWindowsNpmCommand(command);
+    } else {
+        return await executeMacNpmCommand(command);
+    }
+}
+
+async function executeWindowsNpmCommand(command) {
+    try {
+        const currentDir = getCurrentDirectory();
+        console.log(`Executing npm command: ${command} in directory: ${currentDir}`);
+        const response = await fetch('/api/npm_command', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ command: command, directory: currentDir }),
+        });
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP error! status: ${response.status}. ${errorText}`);
+        }
+        const result = await response.text();
+        log(result, 'output');
+        console.log('npm command result:', result);
+
+        // Check if packages were actually installed
+        if (result.includes('node_modules directory created')) {
+            console.log('Packages installed, creating TouchDesigner components...');
+            await createTouchDesignerComponents();
+        } else {
+            console.log('No new packages installed or node_modules not found, skipping component creation.');
+        }
+    } catch (error) {
+        log(`Error executing npm command: ${error.message}`, 'error');
+        console.error('Detailed error:', error);
+    }
+}
+
+async function createTouchDesignerComponents() {
+    try {
+        console.log(`Creating TouchDesigner components in directory: ${getCurrentDirectory()}`);
+        const response = await fetch('/api/create_touchdesigner_components', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ directory: getCurrentDirectory() }),
+        });
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Failed to create TouchDesigner components: ${response.status} ${response.statusText}. ${errorText}`);
+        }
+        const result = await response.text();
+        console.log(`TouchDesigner components creation result: ${result}`);
+        log(result, 'success');
+    } catch (error) {
+        log(`Error creating TouchDesigner components: ${error.message}`, 'error');
+        console.error('Detailed error:', error);
+    }
+}
