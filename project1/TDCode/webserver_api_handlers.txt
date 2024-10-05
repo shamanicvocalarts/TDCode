@@ -1,0 +1,42 @@
+import json
+import os
+
+def handle_api_key_request(request, response):
+    print("Received API key request:", request)  # Debug print
+    query_params = request.get('pars', {})
+    provider = query_params.get('provider')
+    
+    if not provider:
+        print("Provider not specified in request")  # Debug print
+        response['statusCode'] = 400
+        response['statusReason'] = 'Bad Request'
+        response['data'] = json.dumps({"error": "Provider not specified"})
+        return response
+
+    print(f"Looking up endpoint for provider: {provider}")  # Debug print
+    # Assume 'api_endpoints' is a DAT storing provider-endpoint mappings
+    endpoints_dat = op('api_endpoints')
+    endpoint = endpoints_dat[provider, 1].val if provider in endpoints_dat.col('provider') else None
+
+    if not endpoint:
+        print(f"Endpoint for {provider} not found")  # Debug print
+        response['statusCode'] = 404
+        response['statusReason'] = 'Not Found'
+        response['data'] = json.dumps({"error": f"Endpoint for {provider} not found"})
+        return response
+
+    print(f"Found endpoint: {endpoint}")  # Debug print
+    key = os.environ.get(endpoint)
+    if not key:
+        print(f"API key for {provider} not found in environment variables")  # Debug print
+        response['statusCode'] = 404
+        response['statusReason'] = 'Not Found'
+        response['data'] = json.dumps({"error": f"API key for {provider} not found"})
+        return response
+
+    print("Sending successful response")  # Debug print
+    response['statusCode'] = 200
+    response['statusReason'] = 'OK'
+    response['content-type'] = 'application/json'
+    response['data'] = json.dumps({"endpoint": endpoint, "key": key})
+    return response
