@@ -1537,3 +1537,4 @@ panelexecValue	/ui/panes/panebar/TDCode/masterStringField/stringField0/panelexec
 panelExecOPExec	/ui/panes/panebar/TDCode/masterStringField/stringField0/panelExecOPExec	masterStringField/stringField0/panelExecOPExec	3
 parexecSettings	/ui/panes/panebar/TDCode/masterStringField/stringField0/parexecSettings	masterStringField/stringField0/parexecSettings	3
 opfind2_callbacks	/ui/panes/panebar/TDCode/opfind2_callbacks	opfind2_callbacks	1
+StringfieldPanelExec	/ui/panes/panebar/TDCode/StringfieldPanelExec	StringfieldPanelExec	1
