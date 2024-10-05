@@ -1,0 +1,54 @@
+// editor_core.js
+import { editorConfig } from './editor_config.js';
+import { updateThemeVariables, log } from './utils.js';
+import { setupWebSocket } from './websocket.js';
+import { setupUIEventListeners } from './ui.js';
+
+let editor;
+let editorModels = {};
+let currentPath = '';
+let isUpdating = false;
+let isLiveMode = true;
+let pendingChanges = {};
+let touchDesignerExtension;
+let globalState = {};
+
+function createEditor() {
+    editor = monaco.editor.create(document.getElementById('container'), editorConfig);
+    updateThemeVariables('vs-dark');
+    log("Editor created");
+    
+    // Set up WebSocket connection
+    setupWebSocket();
+
+    // Initialize Monacopilot
+    initializeMonacopilot();
+
+    // Set up event listeners
+    setupEventListeners();
+
+    updateEditorTheme();
+    editor.layout();
+    window.addEventListener('resize', () => editor.layout());
+}
+
+function updateEditorTheme() {
+    // ... (updateEditorTheme function content)
+}
+
+function initializeMonacopilot() {
+    // ... (code to initialize Monacopilot)
+}
+
+function setupEventListeners() {
+    // ... (code to set up various event listeners)
+}
+
+function handleInitialState(data) {
+    // ... (handleInitialState function content)
+}
+
+export { 
+    editor, createEditor, updateEditorTheme, currentPath, isUpdating, 
+    isLiveMode, pendingChanges, globalState, handleInitialState 
+};
