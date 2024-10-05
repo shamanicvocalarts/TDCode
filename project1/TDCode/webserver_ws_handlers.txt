@@ -1,0 +1,70 @@
+import json
+
+def send_initial_state(webServerDAT, client):
+    """
+    Send the initial state of relevant parameters to the client.
+    """
+    initial_state = {
+        'action': 'initialState',
+        'copilotEnabled': parent.TDC.par.Enablecopilot.eval(),
+        'provider': parent.TDC.par.Provider.eval(),
+        'model': parent.TDC.par.Model.eval(),
+        'useCustomPrompt': parent.TDC.par.Usecustomprompt.eval(),
+        'useTechnologies': parent.TDC.par.Usetechnologies.eval(),
+        'useExternalContext': parent.TDC.par.Useexternalcontext.eval(),
+        'customPrompt': parent.TDC.par.Customprompt.eval(),
+        'technologies': parent.TDC.par.Technologies.eval(),
+        'externalContext': parent.TDC.par.Externalcontext.eval(),
+        'trigger':  parent.TDC.par.Completionmethod.eval(),
+        'loggingEnabled': parent.TDC.par.Enablelogging.eval(),
+        'logTags': parent.TDC.par.Logtags.eval()
+    }
+    
+    message = json.dumps(initial_state)
+    webServerDAT.webSocketSendText(client, message)
+    print(f"Sent initial state to client: {message}")
+
+def send_copilot_status(is_enabled):
+    print(f"Sending copilot status: {is_enabled}")
+    message = json.dumps({
+        'action': 'updateCopilotStatus',
+        'isEnabled': is_enabled
+    })
+    webserver = op('webserver1')
+    if webserver and webserver.webSocketConnections:
+        for client in webserver.webSocketConnections:
+            webserver.webSocketSendText(client, message)
+
+def send_copilot_config(config):
+    message = json.dumps({
+        'action': 'updateCopilotConfig',
+        'config': config
+    })
+    webserver = op('webserver1')
+    if webserver and webserver.webSocketConnections:
+        for client in webserver.webSocketConnections:
+            webserver.webSocketSendText(client, message)
+
+def send_logging_status(is_enabled):
+    message = json.dumps({
+        'action': 'setLogging',
+        'enabled': is_enabled
+    })
+    webserver = op('webserver1')
+    if webserver and webserver.webSocketConnections:
+        for client in webserver.webSocketConnections:
+            webserver.webSocketSendText(client, message)
+
+def send_logtags(logtags):
+    """
+    Send the current log tags to the client.
+    """
+    message = json.dumps({
+        'action': 'updateLogTags',
+        'tags': logtags
+    })
+    webserver = op('webserver1')
+    if webserver and webserver.webSocketConnections:
+        for client in webserver.webSocketConnections:
+            webserver.webSocketSendText(client, message)
+    print(f"Sent log tags to client: {logtags}")
