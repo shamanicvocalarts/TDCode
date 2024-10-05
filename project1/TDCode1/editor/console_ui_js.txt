@@ -1,0 +1,30 @@
+import { editor } from './editor.js';
+
+let isResizing = false;
+let lastY;
+
+// Get references to DOM elements
+var consoleElement = document.getElementById('console');
+var consoleContainer = document.getElementById('console-container');
+var consoleToggle = document.getElementById('console-toggle');
+var resizeHandle = document.getElementById('resize-handle');
+var isConsoleCollapsed = false;
+var previousHeight = consoleContainer.clientHeight;
+
+// Set up console toggle functionality
+consoleToggle.addEventListener('click', function () {
+    // ... (rest of the click event listener)
+});
+
+// Set up console resize functionality
+resizeHandle.addEventListener('mousedown', function (e) {
+    // ... (rest of the mousedown event listener)
+});
+
+document.addEventListener('DOMContentLoaded', function () {
+    // ... (rest of the DOMContentLoaded event listener)
+});
+
+window.addEventListener('message', function (event) {
+    // ... (rest of the message event listener)
+});
