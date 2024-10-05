@@ -1,5 +1,5 @@
-#parexec1
 import os
+import time
 
 class EditorPaneManager:
     def __init__(self):
@@ -83,17 +83,29 @@ def onValueChange(par, prev):
         else:
             print("No DAT selected")
     
-    elif par.name == 'Showeditor':
+    if par.name == 'Showeditor':
         if par.eval():
             editor_manager.showEditorPane()
         else:
             editor_manager.hideEditorPane()
-    elif par.name == 'Enablecopilot':
+    if par.name == 'Enablecopilot':
         is_enabled = par.eval()
         print(f"Enablecopilot changed to: {is_enabled}")
         send_copilot_status(is_enabled)
-    elif par.name in ['Provider', 'Model', 'Usecustomprompt', 'Usetechnologies', 'Useexternalcontext', 'Customprompt', 'Technologies', 'Externalcontext']:
+    if par.name in ['Provider', 'Model', 'Usecustomprompt', 'Usetechnologies', 'Useexternalcontext', 'Customprompt', 'Technologies', 'Externalcontext', 'Completionmethod']:
         send_copilot_config()
+    if par.name == 'Enablelogging':
+        toggle_logging(par.eval())
+    if par.name == 'Logtags':
+        set_logtags(par.eval())
+
+    # Update the Model strMenu based on the selected Provider
+    if par.name == 'Provider':
+        update_model_menu(par.eval())
+
+    # Update the Modelid strMenu based on the selected Providerid
+    if par.name == 'Providerid':
+        update_modelid_menu(par.eval())
 
 def send_copilot_status(is_enabled):
     config = get_current_copilot_config()
@@ -109,7 +121,8 @@ def get_current_copilot_config():
         'useExternalContext': parent.TDC.par.Useexternalcontext.eval(),
         'customPrompt': parent.TDC.par.Customprompt.eval(),
         'technologies': parent.TDC.par.Technologies.eval(),
-        'externalContext': parent.TDC.par.Externalcontext.eval()
+        'externalContext': parent.TDC.par.Externalcontext.eval(),
+        'completionMethod': parent.TDC.par.Completionmethod.eval()
     }
 
 def send_copilot_config():
@@ -117,30 +130,26 @@ def send_copilot_config():
     config['isEnabled'] = parent.TDC.par.Enablecopilot.eval()
     mod(op('webserver1_callbacks')).send_copilot_config(config)
     
-
 def GetDatsList():
     datPaths = parent().par.Dats.menuNames
     datRelPaths = parent().par.Dats.menuLabels
     return [{'path': datPaths[i], 'name': datRelPaths[i]} for i in range(len(datPaths))]
 
+def toggle_logging(enable):
+    print(f"Toggling logging: {'On' if enable else 'Off'}")
+    mod(op('webserver1_callbacks')).send_logging_status(enable)
+
+def set_logtags(logtags):
+    print(f"Setting log tags: {logtags}")
+    mod(op('webserver1_callbacks')).send_logtags(logtags)
 
 def onPulse(par):
     if par.name == "Apipulse":
-        endpoint = parent.TDC.par.Apiendpoint.eval()
-        key = parent.TDC.par.Apikey.eval()
-        print(f"Setting environment variable: {endpoint}={key}")
-        
-        # Set the environment variable using setx (will be persistent)
-        os.system(f"setx {endpoint} {key}")
-        
-        # Manually add it to os.environ so it's accessible in the current session
-        os.environ[endpoint] = key
-        
-        # Now you can access it immediately in the current session
-        env_var = os.environ.get(endpoint, 'Variable not found')
-        print(f"Retrieved from os.environ: {env_var}")
-
-    return
+        handle_apipulse()
+    if par.name == "Modelpulse":
+        handle_modelpulse()
+    if par.name == "Reloadsrc":
+        op("timer2").par.start.pulse()
 
 def onExpressionChange(par, val, prev):
     return
@@ -153,3 +162,306 @@ def onEnableChange(par, val, prev):
 
 def onModeChange(par, val, prev):
     return
+
+# Function to update the Model strMenu based on the selected Provider
+def update_model_menu(provider):
+    # Get the api_endpoints table
+    api_table = op('api_endpoints')
+    
+    # Check if the table is not empty
+    if api_table.numRows < 2:
+        print("Error: api_endpoints table is empty or has only header row.")
+        return
+    
+    # Find the row where the provider matches
+    for row in range(1, api_table.numRows):
+        if api_table[row, 'provider'].val == provider:
+            models = [model.strip() for model in api_table[row, 'models'].val.split(',')]
+            break
+    
+    # Update the Model strMenu
+    parent.TDC.par.Model.menuNames = models
+    parent.TDC.par.Model.menuLabels = models
+
+
+# Initialize the Provider strMenu
+def initialize_provider_menu():
+    api_table = op('api_endpoints')
+    
+    # Check if the table is not empty
+    if api_table.numRows < 2:
+        print("Error: api_endpoints table is empty or has only header row.")
+        return
+    
+    # Extract providers from the table
+    providers = [api_table[row, 'provider'].val for row in range(1, api_table.numRows)]
+    
+    # Initialize the Provider strMenu
+    parent.TDC.par.Provider.menuNames = providers
+    parent.TDC.par.Provider.menuLabels = providers
+
+# Function to initialize the Apiendpoint strMenu
+def initialize_apiendpoint_menu():
+    api_table = op('api_endpoints')
+    
+    # Check if the table is not empty
+    if api_table.numRows < 2:
+        print("Error: api_endpoints table is empty or has only header row.")
+        return
+    
+    # Extract endpoints from the table
+    endpoints = [api_table[row, 'endpoint'].val for row in range(1, api_table.numRows)]
+    
+    # Initialize the Apiendpoint strMenu
+    parent.TDC.par.Apiendpoint.menuNames = endpoints
+    parent.TDC.par.Apiendpoint.menuLabels = endpoints
+
+# Function to initialize the Providerid strMenu
+def initialize_providerid_menu():
+    api_table = op('api_endpoints')
+    
+    # Check if the table is not empty
+    if api_table.numRows < 2:
+        print("Error: api_endpoints table is empty or has only header row.")
+        return
+    
+    # Extract providers from the table
+    providers = [api_table[row, 'provider'].val for row in range(1, api_table.numRows)]
+    
+    # Initialize the Providerid strMenu
+    parent.TDC.par.Providerid.menuNames = providers
+    parent.TDC.par.Providerid.menuLabels = providers
+
+# Function to update the Modelid strMenu based on the selected Providerid
+def update_modelid_menu(providerid):
+    # Get the api_endpoints table
+    api_table = op('api_endpoints')
+    
+    # Check if the table is not empty
+    if api_table.numRows < 2:
+        print("Error: api_endpoints table is empty or has only header row.")
+        return
+    
+    # Find the row where the provider matches
+    models = []
+    for row in range(1, api_table.numRows):
+        if api_table[row, 'provider'].val == providerid:
+            models = [model.strip() for model in api_table[row, 'models'].val.split(',')]
+            break
+    
+    # Update the Modelid strMenu
+    parent.TDC.par.Modelid.menuNames = models
+    parent.TDC.par.Modelid.menuLabels = models
+
+
+# Function to handle the Apipulse event
+def handle_apipulse():
+    api_table = op('api_endpoints')
+    endpoint = parent.TDC.par.Apiendpoint.eval()
+    providerid = parent.TDC.par.Providerid.eval()
+
+    # Check if the endpoint exists in the api_endpoints table
+    endpoint_exists = any(api_table[row, 'endpoint'].val == endpoint for row in range(1, api_table.numRows))
+
+    if endpoint_exists:
+        # Show a popup to enter the API key
+        show_api_key_popup(endpoint)
+    else:
+        # Check if there is a Providerid
+        if not providerid:
+            # Show a popup to enter a new provider
+            show_new_provider_popup()
+        else:
+            # Check if the Providerid has a different endpoint
+            provider_endpoint = None
+            for row in range(1, api_table.numRows):
+                if api_table[row, 'provider'].val == providerid:
+                    provider_endpoint = api_table[row, 'endpoint'].val
+                    break
+
+            if provider_endpoint and provider_endpoint != endpoint:
+                # Show a popup to ask if the user wants to overwrite the endpoint
+                show_overwrite_endpoint_popup(providerid, endpoint)
+            else:
+                # Show a popup to enter the API key
+                show_api_key_popup(endpoint)
+
+# Function to show a popup to enter the API key
+def show_api_key_popup(endpoint):
+    popDialog = op.TDResources.PopDialog
+    popDialog.OpenDefault(
+        text=f'Enter API key for endpoint: {endpoint}',
+        title='API Key Entry',
+        buttons=['Enter', 'Cancel'],
+        callback=on_api_key_entered,
+        details={'endpoint': endpoint},
+        textEntry=True,
+        escButton=2,
+        enterButton=1,
+        escOnClickAway=True
+    )
+
+# Callback function for API key entry popup
+def on_api_key_entered(info):
+    if info['button'] == 'Enter':
+        endpoint = info['details']['endpoint']
+        api_key = info['enteredText']
+        # Set the API key for the endpoint
+        set_api_key(endpoint, api_key)
+
+# Function to show a popup to enter a new provider
+def show_new_provider_popup():
+    popDialog = op.TDResources.PopDialog
+    popDialog.OpenDefault(
+        text='Enter a new provider',
+        title='New Provider Entry',
+        buttons=['Enter', 'Cancel'],
+        callback=on_new_provider_entered,
+        textEntry=True,
+        escButton=2,
+        enterButton=1,
+        escOnClickAway=True
+    )
+
+# Callback function for new provider entry popup
+def on_new_provider_entered(info):
+    if info['button'] == 'Enter':
+        new_provider = info['enteredText']
+        # Add the new provider to the api_endpoints table
+        add_new_provider(new_provider)
+        # Show the API key entry popup for the new provider
+        show_api_key_popup(new_provider)
+
+# Function to show a popup to ask if the user wants to overwrite the endpoint
+def show_overwrite_endpoint_popup(providerid, endpoint):
+    popDialog = op.TDResources.PopDialog
+    popDialog.OpenDefault(
+        text=f'Provider {providerid} already has a different endpoint. Do you want to overwrite it with {endpoint}?',
+        title='Overwrite Endpoint',
+        buttons=['Yes', 'No'],
+        callback=on_overwrite_endpoint_choice,
+        details={'providerid': providerid, 'endpoint': endpoint},
+        escButton=2,
+        enterButton=1,
+        escOnClickAway=True
+    )
+
+# Callback function for overwrite endpoint popup
+def on_overwrite_endpoint_choice(info):
+    if info['button'] == 'Yes':
+        providerid = info['details']['providerid']
+        endpoint = info['details']['endpoint']
+        # Overwrite the endpoint for the provider
+        overwrite_endpoint(providerid, endpoint)
+        # Show the API key entry popup for the new endpoint
+        show_api_key_popup(endpoint)
+
+# Function to set the API key for the endpoint
+def set_api_key(endpoint, api_key):
+    # Set the API key as a system environment variable
+    os.system(f"setx {endpoint} {api_key}")
+    # Manually add it to os.environ so it's accessible in the current session
+    os.environ[endpoint] = api_key
+    # Now you can access it immediately in the current session
+    env_var = os.environ.get(endpoint, 'Variable not found')
+    print(f"Setting API key for endpoint: {endpoint} to {api_key}")
+    print(f"Retrieved from os.environ: {env_var}")
+
+# Function to add a new provider to the api_endpoints table
+def add_new_provider(new_provider):
+    api_table = op('api_endpoints')
+    new_row_index = api_table.numRows
+    api_table.appendRow()
+    api_table[new_row_index, 'provider'] = new_provider
+    api_table[new_row_index, 'endpoint'] = parent.TDC.par.Apiendpoint.eval()  # Use the endpoint name from the parameter
+    api_table[new_row_index, 'models'] = ''
+    print(f"Adding new provider: {new_provider}")
+
+# Function to overwrite the endpoint for the provider
+def overwrite_endpoint(providerid, endpoint):
+    api_table = op('api_endpoints')
+    for row in range(1, api_table.numRows):
+        if api_table[row, 'provider'].val == providerid:
+            api_table[row, 'endpoint'] = endpoint
+            break
+    print(f"Overwriting endpoint for provider: {providerid} with {endpoint}")
+
+# Function to handle the Modelpulse event
+def handle_modelpulse():
+    api_table = op('api_endpoints')
+    providerid = parent.TDC.par.Providerid.eval()
+    modelid = parent.TDC.par.Modelid.eval()
+
+    # Check if the provider exists and is not empty
+    if not providerid:
+        show_no_valid_provider_popup()
+        return
+
+    # Find the row where the provider matches
+    provider_row = None
+    for row in range(1, api_table.numRows):
+        if api_table[row, 'provider'].val == providerid:
+            provider_row = row
+            break
+
+    # If no matching provider is found, show a popup
+    if provider_row is None:
+        show_no_valid_provider_popup()
+        return
+
+    # Get the current models for the provider
+    current_models = [model.strip() for model in api_table[provider_row, 'models'].val.split(',')] if api_table[provider_row, 'models'].val else []
+
+    # Check if the model already exists
+    if modelid in current_models:
+        show_model_already_available_popup()
+    else:
+        # Add the model to the list
+        current_models.append(modelid)
+        api_table[provider_row, 'models'] = ', '.join(current_models)
+        print(f"Added model '{modelid}' to provider '{providerid}'")
+        show_model_import_success_popup(modelid)
+
+# Function to show a popup indicating no valid provider found
+def show_no_valid_provider_popup():
+    popDialog = op.TDResources.PopDialog
+    popDialog.OpenDefault(
+        text='No valid provider found, please select a valid provider',
+        title='No Valid Provider',
+        buttons=['OK'],
+        callback=None,
+        escButton=1,
+        enterButton=1,
+        escOnClickAway=True
+    )
+
+# Function to show a popup indicating the model is already available
+def show_model_already_available_popup():
+    popDialog = op.TDResources.PopDialog
+    popDialog.OpenDefault(
+        text='Model is already available',
+        title='Model Already Available',
+        buttons=['OK'],
+        callback=None,
+        escButton=1,
+        enterButton=1,
+        escOnClickAway=True
+    )
+
+# Function to show a popup indicating the model was imported successfully
+def show_model_import_success_popup(modelid):
+    popDialog = op.TDResources.PopDialog
+    popDialog.OpenDefault(
+        text=f"'{modelid}' imported successfully!",
+        title='Model Imported',
+        buttons=['OK'],
+        callback=None,
+        escButton=1,
+        enterButton=1,
+        escOnClickAway=True
+    )
+
+# Call the initialization function
+initialize_provider_menu()
+initialize_apiendpoint_menu()
+initialize_providerid_menu()
