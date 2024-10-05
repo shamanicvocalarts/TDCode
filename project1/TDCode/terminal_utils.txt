@@ -1,0 +1,193 @@
+#terminal_utils.py
+
+import os
+
+from webserver_dat_op_handlers import  ( GetOpParametersAsJSON, SendDatContent, SendContentToEditor) 
+
+def get_op_content(op_path):
+    try:
+        if is_git_ignored(op_path):
+            raise Exception(f"Operator at path {op_path} is git-ignored")
+        
+        target_op = op(op_path)
+        if target_op is None:
+            raise Exception(f"Operator not found at path: {op_path}")
+        
+        if hasattr(target_op, 'text'):
+            return target_op.text
+        else:
+            raise AttributeError("Operator does not have a 'text' attribute or parameter")
+    except Exception as e:
+        raise Exception(f"Error retrieving content for {op_path}: {str(e)}")
+
+def update_op_content(op_path, content):
+    if is_git_ignored(op_path):
+        raise Exception(f"Operator at path {op_path} is git-ignored")
+    try:
+        if not op_path.startswith('/'):
+            op_path = '/' + op_path
+        
+        print(f"Attempting to access operator at path: {op_path}")
+        
+        target_op = op(op_path)
+        if target_op is None:
+            raise Exception(f"Operator not found at path: {op_path}")
+        
+        target_op.text = content
+        print(f"Successfully updated operator at path: {op_path}")
+    except Exception as e:
+        raise Exception(f"Error updating content for {op_path}: {str(e)}")
+
+def get_absolute_path(op_path):
+    try:
+        target_op = op(op_path)
+        return target_op.path
+    except:
+        return op_path
+
+def is_git_ignored(op_path):
+    dats_op = op('dats')
+    for row in dats_op.rows()[1:]:  # Skip header row
+        if row[1].val == op_path:  # Assuming the path is in the second column
+            operator = op(op_path)  # Get the operator directly using the path
+            if operator is not None:
+                return "git-ignore" in [tag.lower() for tag in operator.tags]
+            else:
+                return False
+    return False
+
+def create_touchdesigner_components(directory):
+    print(f"Creating TouchDesigner components for: {directory}")
+    
+    relative_path = os.path.relpath(directory, project.folder)
+    parent_path = '/' + relative_path.replace('\\', '/')
+    print(f"Looking for parent COMP at path: {parent_path}")
+    parent_comp = op(parent_path)
+    
+    if not parent_comp:
+        print(f"Error: Could not find parent COMP for path: {parent_path}")
+        print(f"Available root level COMPs: {[c.path for c in root.children]}")
+        return
+
+    spacing = 200
+    y_offset = 0
+
+    package_json = create_text_dat(parent_comp, os.path.join(directory, 'package.json'), 'package_json')
+    if package_json:
+        package_json.nodeX = 0
+        package_json.nodeY = y_offset
+        y_offset -= spacing
+
+    package_lock = create_text_dat(parent_comp, os.path.join(directory, 'package-lock.json'), 'package_lock_json')
+    if package_lock:
+        package_lock.nodeX = 0
+        package_lock.nodeY = y_offset
+        y_offset -= spacing
+
+    node_modules_path = os.path.join(directory, 'node_modules')
+    if os.path.exists(node_modules_path):
+        node_modules_comp = parent_comp.create(containerCOMP, 'node_modules')
+        node_modules_comp.nodeX = 0
+        node_modules_comp.nodeY = y_offset
+        print(f"Created node_modules COMP: {node_modules_comp.path}")
+
+        create_package_components(node_modules_path, node_modules_comp)
+    else:
+        print("node_modules directory not found")
+
+    print(f"Finished creating TouchDesigner components for: {directory}")
+
+def delete_touchdesigner_components(directory, package_name):
+    print(f"Deleting TouchDesigner components for package: {package_name}")
+    
+    relative_path = os.path.relpath(directory, project.folder)
+    parent_path = '/' + relative_path.replace('\\', '/')
+    parent_comp = op(parent_path)
+    
+    if not parent_comp:
+        print(f"Error: Could not find parent COMP for path: {parent_path}")
+        return
+
+    node_modules_comp = parent_comp.op('node_modules')
+    if node_modules_comp:
+        package_comp = node_modules_comp.op(package_name)
+        if package_comp:
+            package_comp.destroy()
+            print(f"Deleted package COMP: {package_name}")
+        else:
+            print(f"Package COMP not found: {package_name}")
+
+        if len(node_modules_comp.children) == 0:
+            node_modules_comp.destroy()
+            print("Deleted empty node_modules COMP")
+    else:
+        print("node_modules COMP not found")
+
+    create_text_dat(parent_comp, os.path.join(directory, 'package.json'), 'package_json')
+    create_text_dat(parent_comp, os.path.join(directory, 'package-lock.json'), 'package_lock_json')
+
+    node_modules_path = os.path.join(directory, 'node_modules')
+    if os.path.exists(node_modules_path) and len(os.listdir(node_modules_path)) == 0:
+        os.rmdir(node_modules_path)
+        print(f"Deleted empty node_modules directory: {node_modules_path}")
+
+def create_package_components(package_path, parent_comp, x_offset=0, y_offset=0):
+    spacing = 200
+    for item in os.listdir(package_path):
+        item_path = os.path.join(package_path, item)
+        if os.path.isdir(item_path):
+            package_comp = parent_comp.create(containerCOMP, item)
+            package_comp.nodeX = x_offset
+            package_comp.nodeY = y_offset
+            print(f"Created package COMP: {package_comp.path} at position ({x_offset}, {y_offset})")
+            
+            create_package_components(item_path, package_comp, x_offset + spacing, y_offset)
+            
+            y_offset -= spacing
+        elif os.path.isfile(item_path):
+            text_dat = create_text_dat(parent_comp, item_path, item.replace('.', '_'))
+            if text_dat:
+                text_dat.nodeX = x_offset
+                text_dat.nodeY = y_offset
+                y_offset -= spacing / 2
+
+def create_text_dat(parent_comp, file_path, dat_name):
+    try:
+        if os.path.exists(file_path):
+            with open(file_path, 'r', encoding='utf-8') as file:
+                content = file.read()
+            text_dat = parent_comp.create(textDAT, dat_name)
+            text_dat.text = content
+            print(f"Created text DAT: {text_dat.path}")
+            return text_dat
+        else:
+            print(f"File not found: {file_path}")
+    except Exception as e:
+        print(f"Error creating text DAT for {file_path}: {str(e)}")
+    return None
+
+def get_multiple_op_contents(paths):
+    contents = {}
+    for path in paths:
+        try:
+            target_op = op(path)
+            if target_op is None:
+                contents[path] = f"Error: Operator not found at path: {path}"
+            else:
+                if target_op.isDAT:
+                    SendDatContent(path)
+                    contents[path] = f"[DAT] Content sent to editor"
+                else:
+                    parameters_json = GetOpParametersAsJSON(target_op)
+                    SendContentToEditor(parameters_json, path, language='json', action='updateOpParameters')
+                    contents[path] = f"[{target_op.type}] Parameters sent to editor"
+        except Exception as e:
+            contents[path] = f"Error retrieving content: {str(e)}"
+    return contents
+
+
+def open_url(url):
+    ui.viewFile(url)
+
+def cell_to_str(cell):
+    return str(cell.val) if hasattr(cell, 'val') else str(cell)
