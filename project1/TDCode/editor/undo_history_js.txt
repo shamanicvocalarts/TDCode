@@ -1,0 +1,12 @@
+import { editor, currentPath } from './editor.js';
+
+// Maximum number of undo history steps to save
+const MAX_UNDO_HISTORY = 500;
+
+export function saveUndoHistory() {
+    // ... (rest of the saveUndoHistory function)
+}
+
+export function loadUndoHistory() {
+    // ... (rest of the loadUndoHistory function)
+}
