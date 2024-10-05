@@ -1,0 +1,192 @@
+##webserver_dat_op_handlers 
+
+import json
+import base64
+import hashlib
+import time
+
+last_known_hashes = {}
+is_updating = False
+
+def SendContentToEditor(content, path, language='python', action='updateContent', updateType='internal'):
+    """
+    Send content to the editor via WebSocket.
+    """
+    global is_updating
+    if is_updating:
+        print("Update in progress, skipping...")
+        return
+
+    is_updating = True
+    # Encode the content
+    content = base64.b64encode(content.encode('utf-8')).decode('utf-8')
+    message = json.dumps({
+        'action': action,
+        'content': content,
+        'path': path,
+        'language': language,
+        'updateType': updateType
+    })
+    webserver = op('webserver1')
+    if webserver and webserver.webSocketConnections:
+        try:
+            for client in webserver.webSocketConnections:
+                webserver.webSocketSendText(client, message)
+            print(f"WebSocket message sent successfully for path: {path}")
+        except Exception as e:
+            print(f"Error sending WebSocket message: {str(e)}")
+    else:
+        print("Error: No WebSocket connections available")
+
+    time.sleep(0.1)  # Short delay to ensure message is processed
+    is_updating = False
+
+def get_dat_hash(dat):
+    """
+    Generate a hash of the DAT's content.
+    """
+    return hashlib.md5(dat.text.encode()).hexdigest()
+
+def CheckDatContentChanged(path):
+    """
+    Check if a DAT's content has changed since last access.
+    """
+    dat_op = op(path)
+    if dat_op and dat_op.isDAT:
+        current_hash = get_dat_hash(dat_op)
+        if path not in last_known_hashes or last_known_hashes[path] != current_hash:
+            last_known_hashes[path] = current_hash
+            return True
+    return False
+
+def SendDatContent(path):
+    """'''  '''
+    Send DAT content to the editor.
+    """ 
+    dat_op = op(path)
+    if dat_op and dat_op.isDAT:
+        content = dat_op.text
+        SendContentToEditor(content, path, action='updateContent', updateType='external')
+
+def UpdateDatsListInEditor():
+    """
+    Update the list of DATs in the editor.
+    """
+    webserver = op('webserver1')
+    if webserver and webserver.webSocketConnections:
+        dats = op('datexec1').module.GetDatsList()
+        dat_contents = {}
+        for dat in dats:
+            try:
+                dat_op = op(dat['path'])
+                if dat_op and dat_op.isDAT:
+                    dat_contents[dat['name']] = dat_op.text
+            except:
+                pass
+        
+        # Construct the file tree
+        dats_file_tree = op('datexec1').module.ConstructFileTree()
+        
+        message = json.dumps({
+            'action': 'updateDatsList',
+            'dats': dats,
+            'datContents': dat_contents,
+            'fileTree': dats_file_tree
+        })
+        for client in webserver.webSocketConnections:
+            webserver.webSocketSendText(client, message)
+    
+    UpdateOpsListInEditor()
+
+def UpdateOpsListInEditor():
+    webserver = op('webserver1')
+    if webserver and webserver.webSocketConnections:
+        ops = op('datexec2').module.GetOpsList()
+        
+        ops_file_tree = op('datexec2').module.ConstructFileTree()
+        
+        message = json.dumps({
+            'action': 'updateOpsList',
+            'ops': ops,
+            'fileTree': ops_file_tree
+        })
+        for client in webserver.webSocketConnections:
+            webserver.webSocketSendText(client, message)
+
+def GetOpParametersAsJSON(op):
+    parameters = {}
+    for p in op.pars():
+        try:
+            value = p.eval()
+            
+            param_info = {
+                'name': p.name,
+                'label': p.label,
+                'value': value if not isinstance(value, tuple) else list(value),
+                'expression': p.expr if hasattr(p, 'expr') else None,
+                'options': p.menuNames if hasattr(p, 'menuNames') else [],
+                'exportOP': str(p.owner.exportOP) if hasattr(p.owner, 'exportOP') else None,
+                'exportSource': str(p.exportSource) if hasattr(p, 'exportSource') else None,
+                'bind_expression': p.bindExpr if hasattr(p, 'bindExpr') else None,
+                'mode': str(p.mode),
+                'bind_references': [str(ref.owner) + '.' + ref.name for ref in p.bindReferences] if hasattr(p, 'bindReferences') and p.bindReferences else []
+            }
+            
+            if isinstance(value, bool):
+                param_info['options'] = [
+                    {'value': True, 'label': 'on'},
+                    {'value': False, 'label': 'off'}
+                ]
+            
+            parameters[p.name] = param_info
+        
+        except Exception as e:
+            print(f"Error serializing parameter '{p.name}': {e}")
+            parameters[p.name] = {"error": str(e)}
+    
+    return json.dumps(parameters, indent=2, default=lambda x: str(x))
+
+
+def UpdateOpParameters(operator, parameters):
+    for name, param_info in parameters.items():
+        if hasattr(operator.par, name):
+            p = getattr(operator.par, name)
+            
+            try:
+                if 'value' in param_info:
+                    p.val = param_info['value']
+                
+                if 'expression' in param_info and param_info['expression'] is not None:
+                    if p.mode == ParMode.EXPRESSION:
+                        p.expr = param_info['expression']
+                
+                if 'bind_expression' in param_info and param_info['bind_expression'] is not None:
+                    p.bindExpr = param_info['bind_expression']
+                
+                # Only attempt to set export if both exportOP and exportSource are provided
+                if 'exportOP' in param_info and 'exportSource' in param_info:
+                    if param_info['exportOP'] and param_info['exportSource']:
+                        export_op = op(param_info['exportOP'])
+                        if export_op:
+                            p.export = export_op
+                            p.exportSource = param_info['exportSource']
+                    elif p.export:  # Only clear if it was previously set
+                        p.export = None
+                        p.exportSource = None
+                
+                if 'mode' in param_info:
+                    p.mode = eval(param_info['mode'])
+            
+            except Exception as e:
+                pass
+        else:
+            print(f"Parameter '{name}' not found on operator {operator.path}")
+
+def onOperatorParameterChange(par):
+    """
+    Callback function triggered when an operator parameter changes.
+    """
+    op = par.owner
+    path = op.path
+    parameters = GetOpParametersAsJSON(op)
+    SendContentToEditor(parameters, path, language='json', action='updateOpParameters')
