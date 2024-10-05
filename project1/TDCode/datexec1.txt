@@ -29,3 +29,31 @@ def GetDatsList():
     datPaths = parent().par.Datsmenu.menuNames
     datRelPaths = parent().par.Datsmenu.menuLabels
     return [{'path': datPaths[i], 'name': datPaths[i]} for i in range(len(datPaths))] 
+
+def ConstructFileTree():
+    dats_list = GetDatsList()
+    
+    file_tree = []
+    
+    for dat in dats_list:
+        path_parts = dat['path'].split('/')
+        current_level = file_tree
+        for i, part in enumerate(path_parts):
+            found = False
+            for item in current_level:
+                if item['name'] == part:
+                    current_level = item['children']
+                    found = True
+                    break
+            if not found:
+                new_item = {
+                    'name': part, 
+                    'path': '/'.join(path_parts[:i+1]),
+                    'isDirectory': i < len(path_parts) - 1,
+                    'isDat': i == len(path_parts) - 1,
+                    'children': []
+                }
+                current_level.append(new_item)
+                current_level = new_item['children']
+                
+    return file_tree
