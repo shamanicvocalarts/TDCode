@@ -1,0 +1,359 @@
+//monacopilot_config.js
+
+import { Copilot, registerCompletion } from 'https://unpkg.com/monacopilot@0.11.5/build/index.mjs';
+import { log } from "./utils.js";
+import { getStateValue, globalState } from "./editor.js";
+
+let copilotInstance = null;
+let isCopilotEnabled = false; // Start with false
+
+let touchDesignerExtension;
+let isInitializationComplete = false;
+
+export function setIsCopilotEnabled(value) {
+    isCopilotEnabled = value;
+    console.log(`isCopilotEnabled set to: ${isCopilotEnabled}`);
+}
+
+export function getIsCopilotEnabled() {
+    console.log(`Current isCopilotEnabled value: ${isCopilotEnabled}`);
+    return isCopilotEnabled;
+}
+
+function safeDispose(instance) {
+    if (instance && typeof instance.dispose === 'function') {
+        instance.dispose();
+    } else {
+        log("No dispose method available, performing alternative cleanup");
+        // Perform alternative cleanup if necessary
+        instance = null;
+    }
+}
+
+function getSuggestions() {
+    if (!touchDesignerExtension || typeof touchDesignerExtension.getAllSuggestions !== 'function') {
+        console.warn("TouchDesigner extension not loaded or getAllSuggestions not available");
+        return [];
+    }
+    const suggestions = touchDesignerExtension.getAllSuggestions();
+    console.log("Retrieved suggestions:", suggestions.length);
+    return suggestions;
+}
+
+async function getApiKey(provider) {
+    try {
+        const response = await fetch(`/api/getApiKey?provider=${encodeURIComponent(provider)}`);
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Failed to fetch API key: ${response.statusText}. Error: ${errorText}`);
+        }
+        return response.json();
+    } catch (error) {
+        console.error("Error in getApiKey:", error);
+        throw error;
+    }
+}
+
+export async function initializeMonacopilot(monaco, editor, language, options = {}) {
+    console.log("Starting initializeMonacopilot...");
+
+    const maxWaitTime = 10000; // 10 seconds max wait time
+    const startTime = Date.now();
+
+    while (Object.keys(globalState).length === 0 || globalState.copilotEnabled === undefined) {
+        if (Date.now() - startTime > maxWaitTime) {
+            console.error("Timeout waiting for global state initialization");
+            return;
+        }
+        console.log("Waiting for initial state...");
+        await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    console.log("Global state initialized:", globalState);
+
+    if (!globalState.copilotEnabled) {
+        console.log("Copilot is disabled in global state, skipping initialization");
+        return;
+    }
+    log("Initializing Monacopilot with options:", JSON.stringify(options, null, 2));
+
+    try {
+        const provider = options.provider || 'openrouter';
+        console.log(`Using provider: ${provider}`);
+        const { key } = await getApiKey(provider);
+        console.log("Received API key:", key ? "REDACTED" : "undefined");
+        const completionMethod = options.completionMethod; // Default to onIdle if not specified
+
+        let copilotConfig = provider === 'openrouter' ? setupOpenRouter(key, options) : {};
+        console.log("Copilot config:", JSON.stringify(copilotConfig, null, 2));
+
+        copilotInstance = new Copilot(key, copilotConfig);
+
+        touchDesignerExtension = await new Promise((resolve) => {
+            require(['touchdesigner'], (td) => {
+                console.log("TouchDesigner extension loaded:", td);
+                resolve(td);
+            });
+        });
+
+        const copilotOptions = {
+            endpoint: options.endpoint || `${window.location.origin}/copilot`,
+            language: language,
+            externalContext: options.useExternalContext ? options.externalContext : undefined,
+            technologies: options.useTechnologies ? options.technologies : undefined,
+            customPrompt: options.useCustomPrompt ? options.customPrompt : createCustomPrompt,
+            trigger: completionMethod || getStateValue('trigger', 'onDemand'),
+            maxContextLines: provider === 'groq' ? 60 : undefined, // Set maxContextLines for GROQ
+        };
+
+        const completion = registerCompletion(monaco, editor, copilotOptions);
+
+        console.log("Registering Copilot with options:", JSON.stringify(copilotOptions, null, 2));
+
+        // Check if the action already exists before adding it
+        const existingAction = editor.getAction('monacopilot.triggerCompletion');
+        if (!existingAction) {
+            // Set up manual triggering for all methods
+            monaco.editor.addCommand({
+                id: 'monacopilot.triggerCompletionShortcut',
+                keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.Space],
+                run: () => {
+                    completion.trigger();
+                }
+            });
+
+            editor.addAction({
+                id: 'monacopilot.triggerCompletion',
+                label: 'Complete Code',
+                contextMenuGroupId: 'navigation',
+                keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.Space],
+                run: () => {
+                    completion.trigger();
+                }
+            });
+        } else {
+            console.log("Copilot action already exists, skipping addition");
+        }
+
+        // Monkey patch the fetch function to intercept and handle Copilot requests
+        const originalFetch = window.fetch;
+        window.fetch = async (url, fetchOptions) => {
+            if (url === copilotOptions.endpoint) {
+                if (!isInitializationComplete) {
+                    console.warn("Copilot initialization not complete, ignoring request");
+                    return new Response(JSON.stringify({ error: "Copilot initialization not complete" }), {
+                        status: 403,
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                }
+                if (!isCopilotEnabled) {
+                    console.warn("Copilot is disabled, ignoring request");
+                    return new Response(JSON.stringify({ error: "Copilot is disabled" }), {
+                        status: 403,
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                }
+
+                log("Processing Monacopilot request");
+                const request = JSON.parse(fetchOptions.body);
+                log("Copilot Request Body:", JSON.stringify(request, null, 2));
+
+                // If the customPrompt is a function, call it and log the result
+                if (typeof copilotOptions.customPrompt === 'function') {
+                    const promptParams = request.completionMetadata;
+                    const customPrompt = copilotOptions.customPrompt(promptParams);
+                    log("Custom Prompt:", JSON.stringify(customPrompt, null, 2));
+                }
+
+                try {
+                    log("Sending request to Copilot instance");
+                    const completion = await copilotInstance.complete({ body: request });
+                    log("Received Copilot completion:", JSON.stringify(completion, null, 2));
+                    return new Response(JSON.stringify(completion), {
+                        status: 200,
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                } catch (error) {
+                    console.error("Error in Copilot request:", error);
+                    throw error;
+                }
+            }
+            return originalFetch(url, fetchOptions);
+        };
+
+        log("Monacopilot initialized for", language);
+    } catch (error) {
+        console.error("Failed to initialize Monacopilot:", error);
+    }
+    isInitializationComplete = true;
+    console.log("Monacopilot initialization completed");
+}
+
+export function enableMonacopilot(monaco, editor, config = {}) {
+    return new Promise((resolve) => {
+        setIsCopilotEnabled(config.copilotEnabled !== undefined ? config.copilotEnabled : true);
+        globalState.copilotEnabled = getIsCopilotEnabled();
+
+        if (getIsCopilotEnabled()) {
+            initializeMonacopilot(monaco, editor, editor.getModel().getLanguageId(), config)
+                .then(resolve);
+        } else {
+            resolve();
+        }
+    });
+}
+
+export function disableMonacopilot(monaco, editor) {
+    log("Disabling Monacopilot");
+    isCopilotEnabled = false;
+    safeDispose(copilotInstance);
+    copilotInstance = null;
+
+    // Remove Monacopilot suggestions provider
+    monaco.languages.registerCompletionItemProvider('*', {
+        provideCompletionItems: () => ({ suggestions: [] })
+    });
+}
+
+export function updateMonacopilotLanguage(monaco, editor, language, options = {}) {
+    if (copilotInstance) {
+        const copilotOptions = {
+            endpoint: options.endpoint || `${window.location.origin}/copilot`,
+            language: language,
+            externalContext: options.useExternalContext ? getExternalContext() : undefined,
+            technologies: options.useTechnologies ? getTechnologies() : undefined,
+            customPrompt: options.useCustomPrompt ? createCustomPrompt() : undefined
+        };
+        const completion = registerCompletion(monaco, editor, copilotOptions);
+
+
+
+        log("Monacopilot language updated to", language);
+    } else {
+        console.error("Monacopilot not initialized");
+    }
+}
+
+export function setupOpenRouter(apiKey, options) {
+    log("Setting up OpenRouter with API key:", apiKey ? "REDACTED" : "undefined");
+    log("Options:", options);
+
+    return {
+        model: {
+            config: (apiKey, prompt) => ({
+                endpoint: 'https://openrouter.ai/api/v1/chat/completions',
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                    'HTTP-Referer': options.siteUrl || window.location.origin,
+                    'X-Title': options.siteName || 'TDCode',
+                    'Content-Type': 'application/json',
+                },
+                body: {
+                    model: options.model || 'deepseek/deepseek-chat',
+                    messages: [
+                        { role: 'user', content: prompt.user }
+                    ],
+                },
+            }),
+            transformResponse: (response) => {
+                log("Raw API response:", response);
+                return {
+                    completion: response.choices[0].message.content,
+                };
+            },
+        },
+    };
+}
+
+function getExternalContext() {
+    return [];
+}
+
+function getTechnologies() {
+    return ['python', 'touchdesigner'];
+}
+
+function createCustomPrompt({ language, textBeforeCursor, textAfterCursor }) {
+    const prefix = extractPrefix(textBeforeCursor);
+    const currentSuggestions = getSuggestions();
+    const filteredSuggestions = filterSuggestionsByPrefix(currentSuggestions, prefix);
+
+    const formattedSuggestions = filteredSuggestions.map(suggestion => {
+        const label = typeof suggestion === 'object' ? suggestion.label : suggestion;
+        return {
+            suggestion: label.slice(prefix.length),
+            context: label
+        };
+    });
+
+    const promptSuggestions = formattedSuggestions.map(s =>
+        `suggestion: "${s.suggestion}"`
+    ).join(' ');
+
+    const prompt = {
+        system: `You are an AI assistant specialized in writing ${language} code for TouchDesigner projects. 
+                 You have access to the following TouchDesigner-specific suggestions provided in the suggestion section:
+                 ${promptSuggestions}`,
+        user: `Complete the following ${language} code:
+${textBeforeCursor}
+// Cursor position
+${textAfterCursor}
+Provide only the code completion without additional comments. Use the TouchDesigner-specific suggestions provided in the system message to inform your completion.`
+    };
+
+    log("Raw prompt object:", prompt);
+    return prompt;
+}
+
+function extractPrefix(textBeforeCursor) {
+    // Extract the prefix by finding the first set of characters before a space going backwards
+    const words = textBeforeCursor.split(/\s+/);
+    const prefix = words.length > 0 ? words[words.length - 1] : '';
+    log("Extracted prefix from textBeforeCursor:", prefix);
+    return prefix;
+}
+
+function filterSuggestionsByPrefix(suggestions, prefix) {
+    log("Filtering suggestions with prefix:", prefix);
+    const filtered = suggestions.filter(suggestion => {
+        if (typeof suggestion === 'string') {
+            return suggestion.toLowerCase().startsWith(prefix.toLowerCase());
+        } else if (typeof suggestion === 'object' && suggestion.label) {
+            return suggestion.label.toLowerCase().startsWith(prefix.toLowerCase());
+        }
+        return false;
+    });
+    log("Filtered suggestions count:", filtered.length);
+    return filtered.slice(0, 20);  // Limit to 20 suggestions
+}
+
+// Ensure global state is initialized before calling initializeMonacopilot
+window.addEventListener('load', function () {
+
+    setTimeout(() => {
+        const monaco = window.monaco;
+        const editor = monaco.editor.getEditors()[0];
+        const language = editor.getModel().getLanguageId();
+
+        // Get copilot enabled state from global state object
+        const copilotEnabled = globalState.copilotEnabled;
+
+        if (Object.keys(globalState).length === 0) {
+            console.log("Waiting for initial state...");
+            const checkInterval = setInterval(() => {
+                if (Object.keys(globalState).length > 0) {
+                    clearInterval(checkInterval);
+                    // Pass copilotEnabled state explicitly 
+                    initializeMonacopilot(monaco, editor, language, {
+
+                    }, copilotEnabled);
+                }
+            }, 100);
+        } else {
+            // Pass copilotEnabled state explicitly
+            initializeMonacopilot(monaco, editor, language, {
+
+            }, copilotEnabled);
+        }
+    }, 1000);
+});
