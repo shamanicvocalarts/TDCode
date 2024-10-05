@@ -15,9 +15,14 @@ def onValueChange(channel, sampleIndex, val, prev):
             selected_op = op(op.TDC.par.Opsmenu.eval())
             if selected_op:
                 selected_op.openViewer(unique=False, borders=True)
+    elif channel.name == "ShowEditor":
+        if val == 1:
+            op.TDC.par.Showeditor = 1
+        elif val == 0:
+            op.TDC.par.Showeditor = 0
 
 def onOffToOn(channel, sampleIndex, val, prev):
     onValueChange(channel, sampleIndex, val, prev)
 
 def onOnToOff(channel, sampleIndex, val, prev):
-    pass  # We don't need to do anything when the value goes back to 0
+    pass  
