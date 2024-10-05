@@ -1,0 +1,80 @@
+//auth.js
+
+import { Octokit } from "https://esm.sh/octokit";
+import { log } from './uiHelpers.js';
+
+const PROXY_URL = 'https://td-code-github-authenticator-ShamanicArts.replit.app';
+const CLIENT_ID = 'Iv23lixsF7l3dZmE0moZ';
+
+let octokit = null;
+
+export async function initAuth(token) {
+    octokit = new Octokit({ auth: token });
+    return octokit;
+}
+
+export function getOctokit() {
+    return octokit;
+}
+
+export async function checkAuthToken() {
+    const token = localStorage.getItem('github_access_token');
+    if (token) {
+        log(`Authentication token found: ${token.substring(0, 5)}...`, 'info');
+        await initAuth(token);
+    } else {
+        log('No authentication token found in local storage.', 'info');
+    }
+}
+
+
+export async function handleAuthCallback(callbackUrl) {
+    const url = new URL(callbackUrl);
+    const code = url.searchParams.get('code');
+
+    if (!code) {
+        log('Error: No code found in the callback URL', 'error');
+        return;
+    }
+
+    try {
+        log(`Attempting to exchange code: ${code}`, 'auth');
+        const response = await fetch(`${PROXY_URL}/proxy/github/oauth/access_token`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ code }),
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+        }
+
+        const data = await response.json();
+        console.log('Response data:', data);
+
+        if (data.access_token) {
+            const octokit = new Octokit({ auth: data.access_token });
+            localStorage.setItem('github_access_token', data.access_token);
+            log('Authentication successful. You can now use GitHub API commands.', 'success');
+            return octokit;
+        } else if (data.error) {
+            throw new Error(`GitHub API Error: ${data.error_description || data.error}`);
+        } else {
+            throw new Error('Failed to obtain access token: Unexpected response format');
+        }
+    } catch (error) {
+        log(`Error during authentication: ${error.message}`, 'error');
+        console.error('Detailed error:', error);
+    }
+}
+
+
+
+export async function startAuth() {
+    const authUrl = `https://github.com/login/oauth/authorize?client_id=${CLIENT_ID}&scope=repo`;
+    log(`Please visit this URL to authenticate: ${authUrl}`, 'auth');
+    log('After authentication, you will be redirected. Please paste the full redirect URL here.', 'auth');
+}
