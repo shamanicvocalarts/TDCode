@@ -1,0 +1,2 @@
+provider	endpoint	models	url
+openrouter	OPENROUTER_API_KEY	deepseek/deepseek-chat, microsoft/wizardlm-2-8x22b, nousresearch/hermes-3-llama-3.1-405b:free	https://openrouter.ai/api/v1/chat/completions
