@@ -1,2 +1,1 @@
-
-Tell the user what language has been selected in the parameters 
+different text
